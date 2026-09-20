@@ -1,0 +1,14 @@
+{
+  "name": "madhuca",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "logic",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace frontend",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}

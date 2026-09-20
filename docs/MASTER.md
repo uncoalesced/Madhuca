@@ -1,0 +1,63 @@
+# Madhuca — Master Documentation
+
+**Project:** Autonomous Stubble & Biomass Fire Early-Warning Radar
+**Event:** Build with AI — Code for Communities, Track 2 (Clean Air & Climate Resilience)
+**Deadline:** 30 Sept 2026 (IST)
+**Team:** Joel (uncoalesced), Rahul, Jammy
+**Repo:** https://github.com/uncoalesced/Madhuca
+**Live domain (planned):** madhuca.uncoalesced.com (separate frontend/UI from the main uncoalesced.com site; same domain, own subdomain, own everything else)
+
+This is the single running record of what the system is and does. Every decision that changes the shape of the product gets logged here, dated, in one line. Day-to-day work goes in `docs/log/<name>.md` instead — this file is for decisions, not task diaries.
+
+---
+
+## 1. What it does
+
+You open the site. At that moment it runs — pulls live active-fire hotspots (MODIS/VIIRS via NASA FIRMS) for the selected region, pulls live wind data, computes a rough smoke-dispersion direction for each hotspot, classifies each hotspot as likely wildfire vs. likely agricultural/stubble burning, and shows it all on a map. Nothing runs continuously in the background watching the sky — it's an on-demand lookup tool, not a 24/7 monitor. There is no automated outbound calling/dispatch to officials; this is an informational tool for farmers, hikers, and anyone who wants to check fire/smoke risk in their area before it's already visible to them.
+
+**Origin story:** a friend of Joel's, John Reddy, had property in Telangana damaged by a forest fire that struck in broad daylight with no warning. This is why Telangana is one of the four launch regions, not just Punjab/Bihar/Delhi.
+
+## 2. Launch regions
+
+Punjab, Bihar, Delhi, Telangana. Chosen for a mix of stubble-burning prevalence (Punjab, Bihar, Delhi/NCR downwind) and wildfire relevance (Telangana). Not nationwide for v1 — land-cover/boundary data quality and demo scope both favor a focused region set.
+
+**Known adjacent system:** the Forest Survey of India already runs a national forest-fire alert portal ("Van Agni" / fsiforestfire.gov.in) using MODIS (1km) + SNPP-VIIRS (375m), with public SMS registration. It is forest-fire-only — no stubble/crop-burning classification, no smoke dispersion/wind modeling, and no consumer-facing map UI in Indic languages. That gap is Madhuca's actual differentiation for the pitch: dispersion direction (who's downwind, not just where the fire is), the crop-burning-vs-wildfire distinction, and an accessible public UI. Worth stating explicitly in the pitch deck so judges don't mistake this for a Van Agni clone.
+
+## 3. Data sources (all free, confirmed working)
+
+| Need | Source | Notes |
+|---|---|---|
+| Active fire hotspots | [NASA FIRMS API](https://firms.modaps.eosdis.nasa.gov/api/area/) | Free `MAP_KEY` required (request one — takes minutes). Near-real-time MODIS/VIIRS point data: lat/lon, confidence, fire radiative power (FRP). 5,000 transactions / 10-min window. |
+| Wind vectors | [Open-Meteo](https://open-meteo.com/en/docs/gfs-api) | No API key needed. 10,000 free calls/day. Returns wind speed + direction (and pressure-level u/v) for any coordinate, including all four regions. |
+| Land cover (cropland vs. forest) | [ESA WorldCover](https://esa-worldcover.org/en/data-access) | Free, no login: `aws s3 sync s3://esa-worldcover/v200/2021/map ... --no-sign-request`. 10m resolution, Cloud-Optimized GeoTIFF. CC-BY 4.0 — attribution required in the app footer/about page. |
+
+**Decision: we are not running SAM2.** SAM2 was in the original brief as a way to segment satellite imagery into land-use classes ourselves, but ESA WorldCover already ships that classification pre-computed at 10m resolution, free, no GPU needed. Running our own segmentation model would be re-deriving something that already exists as a downloadable file. SAM2/OpenCV are dropped from the architecture unless a concrete future need for live imagery segmentation shows up (e.g., burn-scar extent from post-fire imagery) — not needed for v1.
+
+**Land parcel / village boundaries:** true parcel-level land ownership data doesn't exist as clean open data for India at the resolution the original brief assumed. We use ESA WorldCover's land-*cover* classification (cropland/forest/built-up) for the fire-type classification logic instead of land-*ownership* parcels. Village name/boundary display on the map (a labeling nicety, not load-bearing) is a stretch goal, not core — see open questions below.
+
+## 4. Architecture (settled parts)
+
+- **Trigger model:** on-demand. Opening the site is what kicks off the fetch → compute → render cycle. No cron job scanning daily regardless of traffic.
+- **Heavy lifting done once, offline, via GitHub Actions:** a workflow clips ESA WorldCover to the four launch regions and exports lightweight cropland/forest GeoJSON masks as static files the live site reads. This is where any real Python/GIS processing happens — it runs in CI, not in the user-facing request path, so it isn't constrained by whatever the live hosting environment can or can't run.
+- **Live, per-request work is intentionally light:** fetch FIRMS hotspots, fetch wind for each hotspot's coordinates, run a Gaussian-puff dispersion approximation (not full HYSPLIT — see below), do a point-in-polygon lookup against the precomputed land-cover mask, return it to the frontend to render. All of this is simple enough to run as plain scripts rather than a heavy service.
+- **Dispersion model:** a simplified Gaussian-puff plume calculation driven by live wind data, not real NOAA HYSPLIT (which needs a native binary plus multi-GB meteorological archives — not worth the setup cost in a 10-day window). Labeled honestly in the pitch as "HYSPLIT-inspired simplified dispersion," not a claim of running the real thing.
+- **TTS:** AI4Bharat Indic-TTS, self-hosted/open-source, for reading alerts aloud in Indic languages. Starting languages: Hindi + Punjabi (confirm with Rahul's/Jammy's region priorities as regions get built out).
+- **Openness:** the codebase is fully open source. Individual dependencies we use don't have to be open source themselves — closed-source tools/APIs are fine as long as their use is disclosed (e.g. in the README's stack section).
+- **Dispatch:** no automated outbound calls/SMS to officials — ruled out for legal reasons (TRAI DLT registration for automated voice calls to Indian numbers takes 3–7 business days of paperwork the team doesn't have, with real per-call penalties for non-compliance) and because the product direction shifted to a self-serve lookup tool rather than a push-alert system anyway.
+
+## 5. Open questions (not yet settled — do not build against these until resolved)
+
+1. **Deployment topology:** Cloudflare Workers (free tier: 10ms CPU time per request, 100k requests/day — tight for the dispersion+classification loop across multiple hotspots) vs. Cloudflare Tunnel to a real Node/Python process (homelab or a small box) vs. paying $5/mo for Cloudflare's Workers Paid plan (30s CPU time — cheap headroom, no server to babysit on demo day). Backend logic is being written in TypeScript specifically so this stays a *deployment* decision, not a rewrite, whichever way it lands.
+2. **What "the dispatch layer, built for real" means** now that automated calls are off the table — an in-page alert banner, an opt-in email/SMS subscription a user sets up themselves, both, or something else. Needs one line from Joel before Rahul builds the alert UI around it.
+3. Village-boundary/name labeling on the map — stretch goal, parked until 1–2 are resolved and there's time left.
+4. Extra metrics floated (carbon emissions estimate, wildlife/habitat impact estimate) — explicitly not committed yet, backlog only. Don't build against these unless someone says otherwise in this file.
+
+## 6. Folder map
+
+- `delegation/` — who's doing what (`joel.md`, `rahul.md`, `jammy.md`). Each person edits only their own file.
+- `docs/log/` — a running log per person of what was actually built and tested, dated. Update your own after finishing each task.
+- `docs/MASTER.md` — this file. Decisions only.
+
+---
+*Log of decisions to this file (newest first):*
+- **2026-09-20** — Dropped SAM2/OpenCV segmentation in favor of ESA WorldCover's pre-computed land cover. Confirmed regions: Punjab, Bihar, Delhi, Telangana. Confirmed dispatch = no automated calls, informational tool only. Confirmed dispersion = simplified Gaussian-puff, not real HYSPLIT.

@@ -1,0 +1,23 @@
+# Offline ESA WorldCover clip-and-export job. STUB — see delegation/joel.md.
+name: landcover
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-masks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clip WorldCover to the v1 regions
+        run: ./pipeline/landcover.sh
+
+      # TODO: publish pipeline/out/*.geojson somewhere the live app can read
+      #       (committed static assets, a release artifact, or R2 — decide with
+      #       the deployment topology, docs/MASTER.md §5.1).
+      - name: Upload masks
+        uses: actions/upload-artifact@v4
+        with:
+          name: landcover-masks
+          path: pipeline/out/

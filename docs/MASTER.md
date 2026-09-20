@@ -3,7 +3,7 @@
 **Project:** Autonomous Stubble & Biomass Fire Early-Warning Radar
 **Event:** Build with AI — Code for Communities, Track 2 (Clean Air & Climate Resilience)
 **Deadline:** 30 Sept 2026 (IST)
-**Team:** Joel (uncoalesced), Rahul, Jammy
+**Team:** Joel, Rahul, Jammy
 **Repo:** https://github.com/uncoalesced/Madhuca
 **Live domain (planned):** madhuca.uncoalesced.com (separate frontend/UI from the main uncoalesced.com site; same domain, own subdomain, own everything else)
 

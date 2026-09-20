@@ -23,8 +23,17 @@ npm run build          # typecheck + vite build -> frontend/dist
 ```
 
 No test runner is configured yet — nothing has real logic to test. The first person
-to write real logic picks the runner and records the exact command in their
-`docs/log/<name>.md` entry.
+to write real logic picks the runner, adds a `test` script to that workspace, and
+records the exact command in their `docs/log/<name>.md` entry.
+
+`.github/workflows/ci.yml` runs `typecheck`, `build` and
+`npm test --workspaces --if-present` on every pull request and every push to `main`.
+It runs exactly the commands above — nothing CI-only — so local green means CI
+green. The test step no-ops until a `test` script exists, then enforces itself with
+no workflow change.
+
+CI is a backstop, not the check. Run the commands yourself before opening a PR;
+finding out from a red tick ten minutes later wastes everyone's runway.
 
 ## Where the important reading is
 
@@ -159,7 +168,8 @@ Do all seven, in order:
    markers" is a real assertion. "It renders" is not.
 3. **Actually run it.** Run the command. Read the output.
 4. If it fails, go back to step 1. Do not proceed with a failing or skipped check.
-5. Run `npm run typecheck` and `npm run build`. Both must pass.
+5. Run `npm run typecheck` and `npm run build`. Both must pass. CI runs these too,
+   so a red tick on the PR means you skipped this step.
 6. Add a dated entry to `docs/log/<yourname>.md` with what you built, the exact
    command to re-run the check, and what passing looks like.
 7. Tick the box in your own `delegation/<yourname>.md`.

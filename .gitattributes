@@ -1,0 +1,4 @@
+* text=auto
+
+# Shell scripts run on Linux in CI — CRLF here becomes "bad interpreter" there.
+*.sh text eol=lf

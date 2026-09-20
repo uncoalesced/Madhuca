@@ -32,6 +32,7 @@ Logged in `docs/log/<name>.md`: <!-- yes / no. Required for finished work. -->
 
 - [ ] `npm run typecheck` passes
 - [ ] `npm run build` passes
+- [ ] CI is green (it runs both of the above — a red tick means one of the boxes above is wishful)
 - [ ] The proof above is real output I actually ran, in this branch, just now
 - [ ] I edited only my own `delegation/*.md` and `docs/log/*.md`
 

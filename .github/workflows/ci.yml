@@ -1,0 +1,32 @@
+# Runs the same checks the PR template asks you to paste output for, so a PR that
+# self-reports green but isn't gets caught here instead of at integration time.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # No test runner is configured yet — nothing has a real body to test.
+      # This no-ops until someone adds a `test` script, then starts enforcing itself.
+      - name: Test
+        run: npm test --workspaces --if-present

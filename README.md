@@ -19,6 +19,23 @@ npm run dev             # frontend on http://localhost:5173
 
 `npm run typecheck` checks both workspaces.
 
+## Checks
+
+```bash
+npm run typecheck   # tsc --noEmit, both workspaces
+npm run build       # typecheck + vite build -> frontend/dist
+npm test --workspaces --if-present
+```
+
+`.github/workflows/ci.yml` runs all three on every pull request and on every push
+to `main`. It runs the same commands you run locally, so a PR that passes on your
+machine passes there — and a PR that self-reports green without having been run
+gets caught.
+
+There is no test runner configured yet, because nothing has a real body to test.
+The test step above no-ops until someone adds a `test` script to a workspace, then
+starts enforcing itself with no CI change needed.
+
 ## Secrets & env vars
 
 One secret, one place: `FIRMS_MAP_KEY` in `.env` at the repo root (gitignored).

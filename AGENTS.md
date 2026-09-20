@@ -190,6 +190,49 @@ unticked. An honest partial is useful. A task reported complete that is not cost
 more time than the task itself, because the next person builds on top of it before
 finding out.
 
+## What runs automatically
+
+Four workflows in `.github/workflows/`. None of them replace running the checks
+yourself — they exist to catch the case where someone didn't.
+
+| Workflow | When | What it does |
+|---|---|---|
+| `ci.yml` | every PR, every push to `main` | `typecheck`, `build`, `test --if-present` |
+| `contract-guard.yml` | every PR | **Fails** if the PR edits `logic/src/types.ts` without the `contract` label and a linked issue |
+| `labeler.yml` | every PR | Labels by area: `frontend`, `logic`, `pipeline`, `docs`, `repo-config`, `contract` |
+| `stale.yml` | daily, 09:00 IST | Comments on issues/PRs idle 3+ days. Never closes anything |
+| `landcover.yml` | manual only | The offline WorldCover clip-and-export. Stub |
+
+If `contract-guard` fails on your PR, the failure message tells you the exact steps.
+Do not try to get around it by reverting the label check — the guard is the whole
+point, and the thing it prevents costs days at integration time.
+
+If `stale` nudges something you are genuinely parking, label it `backlog` and it
+stops. If it is blocked, label it `blocked` and say on the issue what by.
+
+## Branch protection (Joel — one-time, needs admin)
+
+The workflows report, but nothing forces a red PR to stay unmerged until `main` is
+protected. On github.com/uncoalesced/Madhuca:
+
+1. **Settings → Rules → Rulesets → New ruleset → New branch ruleset.**
+2. Name it `main`. Set **Enforcement status** to **Active**.
+3. **Target branches → Add target → Include default branch.**
+4. Tick **Require a pull request before merging**. Set required approvals to **1**
+   (three people; anything higher just blocks on availability).
+5. Tick **Require status checks to pass**. Search and add **`check`** (the job in
+   `ci.yml`) and **`guard`** (the job in `contract-guard.yml`). Also tick
+   **Require branches to be up to date before merging**.
+6. Tick **Block force pushes**.
+7. Leave **Require signed commits** off — it will only cost the team time here.
+8. **Create**.
+
+Status checks only appear in that search once they have run at least once, so open
+one throwaway PR first if the list is empty.
+
+Do not add yourself to a bypass list. The point is that the rule applies to whoever
+is moving fastest at 2am on the 29th, which will be you.
+
 ## Things that are never "cleanup"
 
 Do not remove these while tidying or restyling:

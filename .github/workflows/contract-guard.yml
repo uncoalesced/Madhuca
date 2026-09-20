@@ -1,0 +1,70 @@
+# logic/src/types.ts is the seam three people build against in parallel. Changing a
+# shape there silently breaks someone else's in-flight work, and it surfaces at
+# integration time when there is no runway left to fix it. This makes that
+# impossible to do by accident.
+#
+# See AGENTS.md -> "Changing a shared type" for the procedure this enforces.
+name: contract-guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const CONTRACT_FILE = 'logic/src/types.ts';
+
+            const files = await github.paginate(
+              github.rest.pulls.listFiles,
+              { ...context.repo, pull_number: context.payload.pull_request.number }
+            );
+            const touched = files.some(f => f.filename === CONTRACT_FILE);
+
+            if (!touched) {
+              core.info(`This PR does not touch ${CONTRACT_FILE}. Nothing to check.`);
+              return;
+            }
+
+            const labels = context.payload.pull_request.labels.map(l => l.name);
+            const hasLabel = labels.includes('contract');
+
+            const body = context.payload.pull_request.body || '';
+            const linksIssue = /#\d+/.test(body);
+
+            const missing = [];
+            if (!hasLabel) missing.push('the `contract` label is not applied');
+            if (!linksIssue) missing.push('the PR body does not reference an issue number (e.g. `Refs #14`)');
+
+            if (missing.length === 0) {
+              core.info('Contract change is labeled and linked. Checking the ack happened is on the reviewer.');
+              return;
+            }
+
+            core.setFailed(
+              [
+                `This PR edits ${CONTRACT_FILE}, which is the shared contract between`,
+                'Joel, Rahul and Jammy. Before it can merge:',
+                '',
+                ...missing.map(m => `  - ${m}`),
+                '',
+                'Do this, in this order:',
+                '',
+                '  1. Open a "Contract change" issue. Paste the current shape and the new one.',
+                `  2. Run: grep -rn "<TypeName>" frontend/src logic/src`,
+                '     Tick everyone whose code shows up in the results.',
+                '  3. Wait for them to reply agreeing. Do not assume they will be fine with it.',
+                '  4. Add the `contract` label to this PR and reference the issue in the body.',
+                '  5. Fix every caller the change breaks in this same PR.',
+                '',
+                'If you did not mean to change a type, revert that file and this check passes.',
+              ].join('\n')
+            );

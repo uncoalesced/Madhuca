@@ -1,0 +1,21 @@
+# Labels PRs by the area they touch. Config lives in .github/labeler.yml.
+# Note this also applies the `contract` label automatically when a PR edits
+# logic/src/types.ts — contract-guard still requires a linked issue, so the
+# auto-label is a flag for reviewers, not a way around the procedure.
+name: labeler
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          sync-labels: true

@@ -36,6 +36,11 @@ There is no test runner configured yet, because nothing has a real body to test.
 The test step above no-ops until someone adds a `test` script to a workspace, then
 starts enforcing itself with no CI change needed.
 
+Three more workflows run on pull requests: `contract-guard` (blocks an unannounced
+change to the shared types in `logic/src/types.ts`), `labeler` (labels a PR by the
+area it touches) and `stale` (nudges anything idle for 3 days, never closes it).
+`AGENTS.md` explains what to do when one of them fires.
+
 ## Secrets & env vars
 
 One secret, one place: `FIRMS_MAP_KEY` in `.env` at the repo root (gitignored).

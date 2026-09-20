@@ -1,0 +1,27 @@
+# Config for .github/workflows/labeler.yml (actions/labeler v5).
+# Labels a PR by which area it touches, so everyone can see whose patch it is
+# without opening the diff.
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file: 'frontend/**'
+
+logic:
+  - changed-files:
+      - any-glob-to-any-file: 'logic/**'
+
+pipeline:
+  - changed-files:
+      - any-glob-to-any-file: ['pipeline/**', '.github/workflows/landcover.yml']
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ['docs/**', 'delegation/**', '*.md']
+
+repo-config:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**', 'package.json', 'package-lock.json', '.gitignore', '.gitattributes', '.env.example']
+
+contract:
+  - changed-files:
+      - any-glob-to-any-file: 'logic/src/types.ts'

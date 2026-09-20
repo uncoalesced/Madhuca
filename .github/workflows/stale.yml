@@ -1,0 +1,38 @@
+# A 10-day build has no room for a task sitting untouched for three days because
+# nobody noticed. This nudges, it does not close anything — a human decides that.
+name: stale
+
+on:
+  schedule:
+    - cron: '30 3 * * *'   # 09:00 IST daily
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 3
+          days-before-close: -1          # never auto-close, on issues or PRs
+          stale-issue-label: stale
+          stale-pr-label: stale
+          remove-stale-when-updated: true
+          exempt-issue-labels: 'blocked,backlog'
+          exempt-pr-labels: 'blocked'
+          stale-issue-message: >
+            No activity on this for 3 days. With the 30 Sept deadline that is a
+            meaningful chunk of the runway.
+
+
+            Either move it, or say here what it is blocked on so someone can
+            unblock it. If it is genuinely parked, label it `backlog` and it will
+            stop being nudged.
+          stale-pr-message: >
+            This PR has been open for 3 days without activity. Open PRs are work
+            nobody else can build on yet — either land it or say what it is
+            waiting for.

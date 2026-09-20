@@ -210,6 +210,20 @@ point, and the thing it prevents costs days at integration time.
 If `stale` nudges something you are genuinely parking, label it `backlog` and it
 stops. If it is blocked, label it `blocked` and say on the issue what by.
 
+## Seeding the backlog (Joel — one-time)
+
+`.github/seed-issues.sh` creates the 12 labels and the 19 opening issues, taken from
+the three delegation briefs and the open questions in `docs/MASTER.md`. Run it once,
+after the first push:
+
+```bash
+./.github/seed-issues.sh
+```
+
+It is **not idempotent** — running it twice gives you every issue twice. Issue forms
+only apply in the web UI, so the bodies in the script mirror the Task template's
+fields by hand.
+
 ## Branch protection (Joel — one-time, needs admin)
 
 The workflows report, but nothing forces a red PR to stay unmerged until `main` is

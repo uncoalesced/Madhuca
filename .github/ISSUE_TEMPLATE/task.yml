@@ -1,0 +1,74 @@
+name: Task
+description: A unit of work someone is going to build.
+title: "[task] "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One task per issue. If it needs more than one person, split it.
+
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Owner
+      description: Who is building this. One person, not "the team".
+      options:
+        - Joel (architecture, pipeline, integration, deploy)
+        - Rahul (frontend, UX)
+        - Jammy (dispersion, classification, TTS)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - frontend/
+        - logic/
+        - pipeline/
+        - docs/ or delegation/
+        - repo config (CI, build, deploy)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What to build
+      description: Plain description of the change. Not a plan, not a design doc.
+      placeholder: Render the dispersion plume for each hotspot as a cone overlay on the map.
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: How we will know it works
+      description: |
+        The check that proves it. A test, a script, a screenshot of real output.
+        This is the Definition of Done, and it is not optional — see AGENTS.md.
+      placeholder: |
+        Test: given 3 mock hotspots with known wind, the map renders 3 cones pointing downwind.
+        Command: npm test --workspace frontend
+    validations:
+      required: true
+
+  - type: textarea
+    id: blocked-by
+    attributes:
+      label: Blocked by
+      description: |
+        Issue numbers, or a line from docs/MASTER.md §5 that is still unanswered.
+        Write "nothing" if it is ready to start.
+      placeholder: "#12 (needs the land-cover mask), and docs/MASTER.md §5.1 is still open"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contract
+    attributes:
+      label: Contract impact
+      options:
+        - label: This changes a type in `logic/src/types.ts` (if ticked, open a Contract change issue instead — three people build against those types)

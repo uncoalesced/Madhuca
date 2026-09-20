@@ -95,3 +95,97 @@ are exempt; anything with a real body is not.
 
 No speculative abstraction, no config for values that never change, no dependencies
 beyond those already named in `docs/MASTER.md` §3 and the README stack section.
+
+---
+
+# Working procedure
+
+Follow these literally. Do not improvise around them, do not skip a step because it
+looks unnecessary, and do not mark anything complete before the step that proves it.
+
+## Before you write any code
+
+1. Read `docs/MASTER.md`. If what you are about to build touches anything listed in
+   its **§5 open questions**, stop and say so. Do not pick an answer yourself.
+2. Read your own `delegation/<yourname>.md`. Build what is in there. If the task you
+   were given is not in there, say so before starting rather than after.
+3. Check there is an open issue for the work. If there is not, open one
+   (see below) so the PR has something to close.
+
+## Opening an issue
+
+Go to Issues → New issue and pick the template. There is no blank issue option —
+pick one of the three:
+
+| Situation | Template |
+|---|---|
+| Work someone is going to build | **Task** |
+| Something already built is behaving wrong | **Bug** |
+| You need to change a type in `logic/src/types.ts` | **Contract change** |
+
+Fill in every required field. They are required because the issue is useless without
+them, not as a formality. Two that people get wrong:
+
+- **"How we will know it works"** — write the actual check, with the command. Not
+  "it should work". If you cannot describe the check, you do not yet understand the
+  task well enough to start it.
+- **"Blocked by"** — write `nothing` if it is ready. Leaving it vague is how a task
+  sits untouched for three days.
+
+Never file a Bug against an unimplemented stub. Every `// TODO` body throwing
+`not implemented` is the intended current state.
+
+## Changing a shared type
+
+`logic/src/types.ts` is the seam between three people working in parallel. Editing it
+without telling anyone is the single most expensive mistake available in this repo,
+because it surfaces at integration time when there is no runway left.
+
+The order is fixed:
+
+1. Open a **Contract change** issue. Paste the current shape and the proposed shape.
+2. `grep -rn "<TypeName>" frontend/src logic/src` and tick everyone whose code
+   appears in the results.
+3. Wait for them to reply agreeing. Do not start on a "they'll probably be fine".
+4. Only then change the type, and fix every broken caller in the same PR.
+
+## Finishing a piece of work
+
+Do all seven, in order:
+
+1. Write the code.
+2. Write the check that proves it — a test file, or a script that runs it with sample
+   data and asserts something real. "Given 3 mock hotspots, the map renders 3
+   markers" is a real assertion. "It renders" is not.
+3. **Actually run it.** Run the command. Read the output.
+4. If it fails, go back to step 1. Do not proceed with a failing or skipped check.
+5. Run `npm run typecheck` and `npm run build`. Both must pass.
+6. Add a dated entry to `docs/log/<yourname>.md` with what you built, the exact
+   command to re-run the check, and what passing looks like.
+7. Tick the box in your own `delegation/<yourname>.md`.
+
+Then open the PR. The template asks you to paste the command **and its real output**.
+Paste the actual terminal text. Do not write "tests pass", do not summarise it, and
+do not write output you expect the command to produce — paste what it printed when
+you ran it.
+
+## What "done" means here
+
+Done means someone else can re-run your command and watch it pass. Nothing else
+counts, whatever an agent reports about its own work. A checked box with no logged
+command behind it is treated as not started.
+
+If you could not finish something, say which part and why, and leave the box
+unticked. An honest partial is useful. A task reported complete that is not costs
+more time than the task itself, because the next person builds on top of it before
+finding out.
+
+## Things that are never "cleanup"
+
+Do not remove these while tidying or restyling:
+
+- The ESA WorldCover attribution in the frontend footer — CC-BY 4.0 requires it.
+- The "simplified Gaussian-puff, not HYSPLIT" wording anywhere it appears.
+- Crop-burning hotspots from the rendered output — they are tagged, never hidden.
+- `"types": []` in `logic/tsconfig.json` — it is what makes a Node-only API fail the
+  typecheck instead of failing on deploy day.

@@ -1,0 +1,50 @@
+name: Bug
+description: Something built already, behaving wrong.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Not for unfinished stubs. Every `// TODO` body throwing `not implemented`
+        is expected, not a bug.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Exact behaviour, exact error text. Paste the real message, do not paraphrase it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Numbered steps, starting from a clean checkout. Include the exact command.
+      placeholder: |
+        1. npm install
+        2. npm run dev
+        3. Select Telangana
+        4. Map stays blank, console shows ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - frontend/
+        - logic/
+        - pipeline/
+        - repo config (CI, build, deploy)
+    validations:
+      required: true

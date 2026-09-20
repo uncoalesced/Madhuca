@@ -1,0 +1,68 @@
+name: Contract change
+description: Changing a shared type in logic/src/types.ts.
+title: "[contract] "
+labels: ["contract", "needs-ack"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Three people build against `logic/src/types.ts` in parallel. Changing a shape
+        there silently breaks someone else's in-flight work, and that breakage usually
+        shows up at integration time when there is no runway left to fix it.
+
+        **Open this, get an ack from everyone affected, then change the type.**
+        Not the other way round.
+
+  - type: input
+    id: type-name
+    attributes:
+      label: Which type
+      placeholder: Plume
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current shape
+      description: Paste it as it stands on main today.
+      render: typescript
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed shape
+      render: typescript
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why the current shape does not work
+      description: |
+        "It would be cleaner" is not a reason. Name the thing you cannot build with
+        the shape as it is.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: affected
+    attributes:
+      label: Who builds against this type
+      description: Tick everyone whose code touches it. Grep for the type name before ticking.
+      options:
+        - label: Joel — fetchers, integration
+        - label: Rahul — frontend components and props
+        - label: Jammy — dispersion, classification, TTS
+
+  - type: checkboxes
+    id: acked
+    attributes:
+      label: Before merging the change
+      options:
+        - label: Everyone ticked above has replied on this issue agreeing to the new shape
+        - label: "`npm run typecheck` passes across both workspaces after the change"
+        - label: Any callers broken by the change are fixed in the same PR, not left for later

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project decisions and architecture
+    url: https://github.com/uncoalesced/Madhuca/blob/main/docs/MASTER.md
+    about: Read this before filing anything. Several ideas were deliberately dropped; do not re-open them here.
+  - name: Who owns what
+    url: https://github.com/uncoalesced/Madhuca/blob/main/delegation
+    about: Per-person work briefs. Check the right brief before assigning work to someone.

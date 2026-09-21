@@ -10,8 +10,9 @@ FIRMS hotspots → fetch wind → compute dispersion → classify → render. No
 in the background, and there is no server-side scheduler. Hackathon build with a
 hard deadline of 30 Sept 2026 — scope discipline matters more than extensibility.
 
-**The repo is currently a skeleton.** Almost every function and component is a typed
-stub with a `// TODO` body. The signatures *are* the deliverable so far.
+**The repo is nearly all skeleton.** `fetchHotspots` and `fetchWind` in `logic/` have
+real bodies and real tests. Every other function and component is a typed stub with a
+`// TODO` body, and those signatures *are* the deliverable so far.
 
 ## Commands
 
@@ -20,17 +21,21 @@ npm install            # npm workspaces: frontend + logic
 npm run dev            # frontend on localhost:5173
 npm run typecheck      # tsc --noEmit across both workspaces
 npm run build          # typecheck + vite build -> frontend/dist
+npm test               # node:test, whichever workspaces have a test script
 ```
 
-No test runner is configured yet — nothing has real logic to test. The first person
-to write real logic picks the runner, adds a `test` script to that workspace, and
-records the exact command in their `docs/log/<name>.md` entry.
+The test runner is Node's built-in `node:test`, picked when the fetchers landed — it
+runs TypeScript directly, so it costs the repo no dependency and no transpile step.
+`logic/` has the `test` script (`node --test`, default discovery over `logic/test/`);
+add one to a workspace when that workspace gets real logic. Test files live outside
+`logic/tsconfig.json`'s `include`, so they are free to use `node:` built-ins without
+weakening the `"types": []` guard on `src/`.
 
 `.github/workflows/ci.yml` runs `typecheck`, `build` and
 `npm test --workspaces --if-present` on every pull request and every push to `main`.
 It runs exactly the commands above — nothing CI-only — so local green means CI
-green. The test step no-ops until a `test` script exists, then enforces itself with
-no workflow change.
+green. It runs Node 24: type stripping has to be on by default for `node --test` to
+pick up the `.ts` test files.
 
 CI is a backstop, not the check. Run the commands yourself before opening a PR;
 finding out from a red tick ten minutes later wastes everyone's runway.
@@ -68,13 +73,21 @@ the doc comment decides, and whoever builds against it gets told.
 `Plume` in particular is Jammy's to finalize; the current shape is the minimum that
 unblocks Rahul's overlay renderer.
 
-### Deployment target is still open
+### Deployment target: Cloudflare Workers free tier
 
-`docs/MASTER.md` §5.1 (Cloudflare Workers Paid vs. a tunnelled server) is unresolved.
-TypeScript was chosen end-to-end specifically to keep that a deployment choice rather
-than a rewrite. **Keep `logic/` free of Node-only APIs and runtime filesystem
-access** — `fetch` and pure computation only. Its tsconfig sets `"types": []` to make
-violations fail the typecheck.
+`docs/MASTER.md` §5.1 was settled on 2026-09-21 — the **Workers free tier**, not Paid
+and not a tunnelled server. TypeScript was chosen end-to-end specifically to keep that
+a deployment choice rather than a rewrite, and it stays that way, so the same rules
+still apply: **keep `logic/` free of Node-only APIs and runtime filesystem access** —
+`fetch` and pure computation only. Its tsconfig sets `"types": []` to make violations
+fail the typecheck.
+
+The free tier's budget is **10ms CPU per request** and 100k requests/day. Time spent
+waiting on `fetch` does not count against it, but parsing and arithmetic do, and the
+budget covers the whole on-demand loop across every hotspot in a region — not per
+hotspot. That is a real design constraint on the dispersion and classification
+modules, not a footnote: prefer arithmetic over allocation, and do not reach for a
+date library, a CSV library or a GeoJSON library on the request path.
 
 ### The dispatch layer does not exist
 

@@ -61,6 +61,7 @@ Punjab, Bihar, Delhi, Telangana. Chosen for a mix of stubble-burning prevalence 
 
 ---
 *Log of decisions to this file (newest first):*
+- **2026-09-21** — Land-cover masks carry **only `cropland` and `forest` polygons**; a point that matches nothing is `other`. That is the third value, not an error — a classifier that throws on a miss would treat most of Delhi as a failure. Output is 390m (about one VIIRS pixel), and tree cover alone is `forest`, so grassland and shrubland read as `other`. Masks are published as static assets in `frontend/public/landcover/`, which §5.1 unblocked. Details in `pipeline/README.md`.
 - **2026-09-21** — §5.1 settled: deploying to the **Cloudflare Workers free tier**. Accepts a 10ms CPU budget per request for the whole region loop, which constrains dispersion and classification to cheap arithmetic — no request-path libraries for dates, CSV or GeoJSON.
 - **2026-09-21** — Live fetchers landed (`fetchHotspots`, `fetchWind`). `fetchHotspots` takes the FIRMS key as an argument instead of reading the environment, because Workers has no `process` and passes secrets on the request `env`.
 - **2026-09-20** — Dropped SAM2/OpenCV segmentation in favor of ESA WorldCover's pre-computed land cover. Confirmed regions: Punjab, Bihar, Delhi, Telangana. Confirmed dispatch = no automated calls, informational tool only. Confirmed dispersion = simplified Gaussian-puff, not real HYSPLIT.

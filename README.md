@@ -62,7 +62,7 @@ so it needs no credentials either.
 |---|---|
 | `frontend/` | Vite + React + TypeScript + MapLibre GL. The map, region selector, hotspot detail panel, TTS button. |
 | `logic/` | Plain TypeScript, no framework assumptions. Fetchers, dispersion, classification, TTS wrapper. |
-| `pipeline/` | Offline ESA WorldCover clip-and-export, run in CI only (`workflow_dispatch`). Done and verified for all four regions — output lands in `frontend/public/landcover/<region>.json`, but isn't committed until a `publish=true` run; see `pipeline/README.md` for the schema and the cropland/forest/other semantics. |
+| `pipeline/` | Offline ESA WorldCover clip-and-export, run in CI only (`workflow_dispatch`). Done and verified for all four regions — output is committed at `frontend/public/landcover/<region>.json` and served as a static asset; re-run the workflow with `publish=true` to refresh it. See `pipeline/README.md` for the schema and the cropland/forest/other semantics. |
 | `docs/` | `MASTER.md` (decisions) and `log/` (per-person work logs). |
 | `delegation/` | Per-person work briefs. Edit only your own. |
 

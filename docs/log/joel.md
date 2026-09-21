@@ -4,6 +4,77 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-21 — Land-cover masks published, and a bug in the publish step
+
+All four masks are now committed at `frontend/public/landcover/<region>.json` and
+served as static assets. 13 MB raw, about 1.6 MB total over the wire once gzipped.
+`.git` is 2.7 MB, so the repo cost is small — git compresses GeoJSON about as well as
+gzip does.
+
+**The first `publish=true` run reported success and published nothing.** The step
+checked for changes with `git diff --quiet -- frontend/public/landcover` *before*
+staging. `git diff` does not look at untracked files, so on the very first publish —
+when nothing under that path is tracked yet — it saw no change and took the
+"masks unchanged, nothing to commit" branch. Green tick, empty directory.
+
+Caught by looking for the directory afterwards rather than trusting the tick, which is
+the whole reason this repo's rule is to check the thing rather than the report. Fixed by
+staging first and comparing against the index (`git diff --cached --quiet`), then
+re-running.
+
+### How it was verified
+
+```bash
+git pull --ff-only
+ls -la frontend/public/landcover/
+npm run build
+```
+
+```
+644  bihar.json  5.8M
+644  delhi.json  93.7K
+644  punjab.json  1.3M
+644  telangana.json  4.9M
+```
+
+The build is the part worth checking, because a 13 MB directory in the wrong place gets
+bundled into the JS:
+
+```
+✓ 40 modules transformed.
+dist/index.html                   0.42 kB │ gzip:  0.29 kB
+dist/assets/index-Bupx-HIY.css    0.16 kB │ gzip:  0.15 kB
+dist/assets/index-BxQZSXnu.js   223.15 kB │ gzip: 69.60 kB
+✓ built in 583ms
+```
+
+The JS bundle is byte-identical to the build before the masks existed, which is the
+proof that Vite copied `public/` through untouched instead of bundling it. They land in
+`dist/landcover/` and parse:
+
+```
+punjab     region=punjab features=3727 type=FeatureCollection
+bihar      region=bihar features=21339 type=FeatureCollection
+delhi      region=delhi features=367 type=FeatureCollection
+telangana  region=telangana features=15847 type=FeatureCollection
+```
+
+So the app fetches one region's mask on demand, not all four up front.
+
+Published by https://github.com/uncoalesced/Madhuca/actions/runs/35600240871.
+
+### Still open / not done
+
+- **`delegation/jammy.md` and `delegation/rahul.md` both still say the masks are not
+  committed.** That was true when they were written an hour ago and is not any more.
+  Not corrected here, because `delegation/joel.md` says those two files are read-only
+  to me — someone who owns them should fix the line, or say it is fine for me to.
+- Re-running the workflow with `publish=true` after a region or class-mapping change is
+  now the refresh path. Once branch protection is on it will need a bypass or a PR,
+  since the step pushes to the branch it ran from.
+
+---
+
 ## 2026-09-21 — Offline land-cover pipeline
 
 `pipeline/landcover.sh` is real. All four masks build in about 32 seconds, and the
@@ -121,11 +192,8 @@ mapped area only, since `other` is deliberately absent.
 
 ### Still open / not done
 
-- **The masks are not committed anywhere yet.** Every run so far was `publish=false`.
-  Nothing reads them until integration exists, regenerating them takes 32 seconds, and
-  committing 13 MB of GeoJSON to a branch under review seemed worse than leaving it as
-  a one-click step. Run the workflow with `publish=true` when the frontend is ready to
-  load them.
+- ~~The masks are not committed anywhere yet.~~ **Published 2026-09-21** — see the
+  entry above.
 - Publishing pushes to whichever branch the run started from, so once branch protection
   is on it will need a bypass or a PR.
 - The region bounding boxes now exist twice — `bbox_for` in `pipeline/landcover.sh` and

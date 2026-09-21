@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
 
       - run: npm ci
@@ -26,7 +26,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      # No test runner is configured yet — nothing has a real body to test.
-      # This no-ops until someone adds a `test` script, then starts enforcing itself.
+      # logic/ runs node:test over TypeScript directly, no runner dependency. Needs
+      # a Node with type stripping on by default, which is why this is not pinned to 22.
       - name: Test
         run: npm test --workspaces --if-present

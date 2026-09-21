@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in this repository.
+Guidance for coding agents working in this repository.
 
 ## What this is
 
@@ -10,8 +10,11 @@ FIRMS hotspots → fetch wind → compute dispersion → classify → render. No
 in the background, and there is no server-side scheduler. Hackathon build with a
 hard deadline of 30 Sept 2026 — scope discipline matters more than extensibility.
 
-**The repo is currently a skeleton.** Almost every function and component is a typed
-stub with a `// TODO` body. The signatures *are* the deliverable so far.
+**The repo is nearly all skeleton.** `fetchHotspots` and `fetchWind` in `logic/` have
+real bodies and real tests. The offline land-cover pipeline (`pipeline/`) is also real
+and has been run for all four regions — see `pipeline/README.md`. Every other function
+and component is a typed stub with a `// TODO` body, and those signatures *are* the
+deliverable so far.
 
 ## Commands
 
@@ -20,17 +23,21 @@ npm install            # npm workspaces: frontend + logic
 npm run dev            # frontend on localhost:5173
 npm run typecheck      # tsc --noEmit across both workspaces
 npm run build          # typecheck + vite build -> frontend/dist
+npm test               # node:test, whichever workspaces have a test script
 ```
 
-No test runner is configured yet — nothing has real logic to test. The first person
-to write real logic picks the runner, adds a `test` script to that workspace, and
-records the exact command in their `docs/log/<name>.md` entry.
+The test runner is Node's built-in `node:test`, picked when the fetchers landed — it
+runs TypeScript directly, so it costs the repo no dependency and no transpile step.
+`logic/` has the `test` script (`node --test`, default discovery over `logic/test/`);
+add one to a workspace when that workspace gets real logic. Test files live outside
+`logic/tsconfig.json`'s `include`, so they are free to use `node:` built-ins without
+weakening the `"types": []` guard on `src/`.
 
 `.github/workflows/ci.yml` runs `typecheck`, `build` and
 `npm test --workspaces --if-present` on every pull request and every push to `main`.
 It runs exactly the commands above — nothing CI-only — so local green means CI
-green. The test step no-ops until a `test` script exists, then enforces itself with
-no workflow change.
+green. It runs Node 24: type stripping has to be on by default for `node --test` to
+pick up the `.ts` test files.
 
 CI is a backstop, not the check. Run the commands yourself before opening a PR;
 finding out from a red tick ten minutes later wastes everyone's runway.
@@ -56,7 +63,9 @@ Three workspaces, split by where the work runs, not by feature:
   and hikers on phones.
 - **`pipeline/`** — the only real GIS processing, run **offline in CI only**. Clips
   ESA WorldCover to the four regions and emits static GeoJSON land-cover masks that
-  the live app reads. Nothing here may creep into the request path.
+  the live app reads. Nothing here may creep into the request path. Done and verified
+  for all four regions — see `pipeline/README.md` for the output schema and the
+  cropland/forest/other semantics before building anything that reads it.
 
 ### `logic/src/types.ts` is the seam
 
@@ -68,13 +77,24 @@ the doc comment decides, and whoever builds against it gets told.
 `Plume` in particular is Jammy's to finalize; the current shape is the minimum that
 unblocks Rahul's overlay renderer.
 
-### Deployment target is still open
+### Deployment target: Cloudflare Workers free tier
 
-`docs/MASTER.md` §5.1 (Cloudflare Workers Paid vs. a tunnelled server) is unresolved.
-TypeScript was chosen end-to-end specifically to keep that a deployment choice rather
-than a rewrite. **Keep `logic/` free of Node-only APIs and runtime filesystem
-access** — `fetch` and pure computation only. Its tsconfig sets `"types": []` to make
-violations fail the typecheck.
+`docs/MASTER.md` §5.1 was settled on 2026-09-21 — the **Workers free tier**, not Paid
+and not a tunnelled server. TypeScript was chosen end-to-end specifically to keep that
+a deployment choice rather than a rewrite, and it stays that way, so the same rules
+still apply: **keep `logic/` free of Node-only APIs and runtime filesystem access** —
+`fetch` and pure computation only. Its tsconfig sets `"types": []` to make violations
+fail the typecheck.
+
+The free tier's budget is **10ms CPU per request** and 100k requests/day. Time spent
+waiting on `fetch` does not count against it, but parsing and arithmetic do, and the
+budget covers the whole on-demand loop across every hotspot in a region — not per
+hotspot. That is a real design constraint on the dispersion and classification
+modules, not a footnote: prefer arithmetic over allocation, and do not reach for a
+date library, a CSV library, a GeoJSON library, or a general-purpose geometry library
+for the point-in-polygon check against the land-cover mask on the request path — a
+plain ray-casting loop over the mask's coordinates is enough and is what the budget
+can afford.
 
 ### The dispatch layer does not exist
 
@@ -94,6 +114,12 @@ scaffold alert-subscription UI.
 - **Dispersion must degrade gracefully** on calm or missing wind rather than throwing.
 - **ESA WorldCover is CC-BY 4.0** and requires visible attribution. It is in the
   frontend footer and the README — do not remove it while restyling.
+- **A land-cover lookup miss is `other`, not an error.** Only `cropland` and `forest`
+  polygons exist in the mask; a classifier that throws on a miss will treat most of
+  Delhi as a failure. Grassland and shrubland also read as `other`, not `forest` —
+  only tree cover does, so Telangana scrub fires land in `other` too. `other` must
+  not be treated as evidence of crop-burning: the classifier's default there is the
+  fire this project is named for (`docs/MASTER.md` §1 — the Telangana origin story).
 
 ## Definition of done
 
@@ -192,7 +218,7 @@ finding out.
 
 ## What runs automatically
 
-Four workflows in `.github/workflows/`. None of them replace running the checks
+Five workflows in `.github/workflows/`. None of them replace running the checks
 yourself — they exist to catch the case where someone didn't.
 
 | Workflow | When | What it does |
@@ -201,7 +227,7 @@ yourself — they exist to catch the case where someone didn't.
 | `contract-guard.yml` | every PR | **Fails** if the PR edits `logic/src/types.ts` without the `contract` label and a linked issue |
 | `labeler.yml` | every PR | Labels by area: `frontend`, `logic`, `pipeline`, `docs`, `repo-config`, `contract` |
 | `stale.yml` | daily, 09:00 IST | Comments on issues/PRs idle 3+ days. Never closes anything |
-| `landcover.yml` | manual only | The offline WorldCover clip-and-export. Stub |
+| `landcover.yml` | manual only (`workflow_dispatch`) | The offline WorldCover clip-and-export. Real and verified for all four regions — publishes masks to `frontend/public/landcover/` only when run with `publish=true`; every run uploads a `landcover-masks` artifact regardless, so you can inspect output before committing it. |
 
 If `contract-guard` fails on your PR, the failure message tells you the exact steps.
 Do not try to get around it by reverting the label check — the guard is the whole
@@ -209,6 +235,20 @@ point, and the thing it prevents costs days at integration time.
 
 If `stale` nudges something you are genuinely parking, label it `backlog` and it
 stops. If it is blocked, label it `blocked` and say on the issue what by.
+
+## Seeding the backlog (Joel — one-time)
+
+`.github/seed-issues.sh` creates the 12 labels and the 19 opening issues, taken from
+the three delegation briefs and the open questions in `docs/MASTER.md`. Run it once,
+after the first push:
+
+```bash
+./.github/seed-issues.sh
+```
+
+It is **not idempotent** — running it twice gives you every issue twice. Issue forms
+only apply in the web UI, so the bodies in the script mirror the Task template's
+fields by hand.
 
 ## Branch protection (Joel — one-time, needs admin)
 

@@ -1,13 +1,116 @@
 import type { Hotspot, Region } from './types';
 
+/** `[west, south, east, north]` in WGS84 degrees — the FIRMS area-query order. */
+export type BBox = readonly [number, number, number, number];
+
+/**
+ * Bounding boxes for the four v1 regions (docs/MASTER.md §2), rounded slightly
+ * outward so a fire just over a state line still shows up for that region.
+ * Doubles as the extent MapView fits its initial bounds to.
+ */
+export const REGION_BBOX: Record<Region, BBox> = {
+  punjab: [73.8, 29.5, 76.95, 32.55],
+  bihar: [83.3, 24.2, 88.3, 27.55],
+  delhi: [76.8, 28.4, 77.4, 28.9],
+  telangana: [77.2, 15.8, 81.85, 19.95],
+};
+
+const FIRMS_AREA_CSV = 'https://firms.modaps.eosdis.nasa.gov/api/area/csv';
+const SOURCE = 'VIIRS_SNPP_NRT';
+const DAY_RANGE = 1;
+
 /**
  * Fetch live active-fire hotspots for a region from NASA FIRMS.
  * In: a v1 region. Out: every hotspot detected in that region's bbox, recent first.
  * Owner: Joel (delegation/joel.md — live data fetchers).
+ *
+ * `mapKey` is passed in rather than read from the environment: this module has to
+ * run unchanged on Cloudflare Workers, where secrets arrive on the request `env`
+ * and there is no `process`. The caller reads it; it is still never hardcoded.
  */
-export async function fetchHotspots(region: Region): Promise<Hotspot[]> {
-  // TODO: GET https://firms.modaps.eosdis.nasa.gov/api/area/csv/{MAP_KEY}/VIIRS_SNPP_NRT/{bbox}/1
-  //       Parse CSV, map rows to Hotspot. MAP_KEY comes from env, never hardcoded.
-  void region;
-  throw new Error('not implemented');
+export async function fetchHotspots(region: Region, mapKey: string): Promise<Hotspot[]> {
+  if (!mapKey) {
+    throw new Error(
+      'FIRMS_MAP_KEY is empty — request one at https://firms.modaps.eosdis.nasa.gov/api/map_key/',
+    );
+  }
+
+  // FIRMS takes the key as a path segment, so never put this URL in an error
+  // message or a log line — it would leak the key.
+  const url = `${FIRMS_AREA_CSV}/${mapKey}/${SOURCE}/${REGION_BBOX[region].join(',')}/${DAY_RANGE}`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`FIRMS responded ${response.status} ${response.statusText}`);
+  }
+
+  return parseHotspotCsv(await response.text());
+}
+
+/**
+ * Parse a FIRMS area CSV body into hotspots, newest first.
+ *
+ * Exported so the check can run against a recorded response without a live key.
+ * Columns are looked up by header name, not position, because MODIS and VIIRS
+ * sources differ in their brightness columns.
+ */
+export function parseHotspotCsv(csv: string): Hotspot[] {
+  const text = csv.trim();
+  const newline = text.indexOf('\n');
+  const header = (newline === -1 ? text : text.slice(0, newline)).trim();
+
+  // ponytail: naive split on ',' — FIRMS fields are numbers and short codes, none
+  // quoted or comma-bearing. Swap in a real CSV parser only if that stops holding.
+  const columns = header.split(',');
+  const columnOf = (name: string) => columns.indexOf(name);
+
+  const latAt = columnOf('latitude');
+  const lonAt = columnOf('longitude');
+
+  // A bad key or an exhausted transaction window comes back as HTTP 200 with a
+  // plain sentence ("Invalid MAP_KEY.") instead of CSV, so the status code alone
+  // is not enough to trust the body.
+  if (latAt === -1 || lonAt === -1) {
+    throw new Error(`FIRMS did not return CSV: ${text.slice(0, 120)}`);
+  }
+
+  const dateAt = columnOf('acq_date');
+  const timeAt = columnOf('acq_time');
+  const frpAt = columnOf('frp');
+  const confidenceAt = columnOf('confidence');
+  const satelliteAt = columnOf('satellite');
+
+  const hotspots: Hotspot[] = [];
+
+  for (const row of newline === -1 ? [] : text.slice(newline + 1).split('\n')) {
+    const fields = row.trim().split(',');
+    const lat = Number(fields[latAt]);
+    const lon = Number(fields[lonAt]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+    const acquiredAt = toIsoUtc(fields[dateAt] ?? '', fields[timeAt] ?? '');
+    const satellite = fields[satelliteAt] ?? 'unknown';
+    const frp = Number(fields[frpAt]);
+
+    hotspots.push({
+      id: `${satellite}:${lat}:${lon}:${acquiredAt}`,
+      lat,
+      lon,
+      frp: Number.isFinite(frp) ? frp : 0,
+      confidence: fields[confidenceAt] ?? '',
+      acquiredAt,
+      satellite,
+    });
+  }
+
+  // ISO-8601 UTC sorts lexicographically, so this needs no Date parsing — which
+  // matters under the Workers free tier's 10ms CPU budget (docs/MASTER.md §5.1).
+  hotspots.sort((a, b) => b.acquiredAt.localeCompare(a.acquiredAt));
+  return hotspots;
+}
+
+/** FIRMS splits acquisition into `acq_date` (2026-09-21) and `acq_time` (HHMM, UTC, sometimes 3 digits). */
+function toIsoUtc(date: string, time: string): string {
+  const hhmm = time.padStart(4, '0');
+  return `${date}T${hhmm.slice(0, 2)}:${hhmm.slice(2)}:00Z`;
 }

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in this repository.
+Guidance for coding agents working in this repository.
 
 ## What this is
 
@@ -11,8 +11,10 @@ in the background, and there is no server-side scheduler. Hackathon build with a
 hard deadline of 30 Sept 2026 — scope discipline matters more than extensibility.
 
 **The repo is nearly all skeleton.** `fetchHotspots` and `fetchWind` in `logic/` have
-real bodies and real tests. Every other function and component is a typed stub with a
-`// TODO` body, and those signatures *are* the deliverable so far.
+real bodies and real tests. The offline land-cover pipeline (`pipeline/`) is also real
+and has been run for all four regions — see `pipeline/README.md`. Every other function
+and component is a typed stub with a `// TODO` body, and those signatures *are* the
+deliverable so far.
 
 ## Commands
 
@@ -61,7 +63,9 @@ Three workspaces, split by where the work runs, not by feature:
   and hikers on phones.
 - **`pipeline/`** — the only real GIS processing, run **offline in CI only**. Clips
   ESA WorldCover to the four regions and emits static GeoJSON land-cover masks that
-  the live app reads. Nothing here may creep into the request path.
+  the live app reads. Nothing here may creep into the request path. Done and verified
+  for all four regions — see `pipeline/README.md` for the output schema and the
+  cropland/forest/other semantics before building anything that reads it.
 
 ### `logic/src/types.ts` is the seam
 
@@ -87,7 +91,10 @@ waiting on `fetch` does not count against it, but parsing and arithmetic do, and
 budget covers the whole on-demand loop across every hotspot in a region — not per
 hotspot. That is a real design constraint on the dispersion and classification
 modules, not a footnote: prefer arithmetic over allocation, and do not reach for a
-date library, a CSV library or a GeoJSON library on the request path.
+date library, a CSV library, a GeoJSON library, or a general-purpose geometry library
+for the point-in-polygon check against the land-cover mask on the request path — a
+plain ray-casting loop over the mask's coordinates is enough and is what the budget
+can afford.
 
 ### The dispatch layer does not exist
 
@@ -107,6 +114,12 @@ scaffold alert-subscription UI.
 - **Dispersion must degrade gracefully** on calm or missing wind rather than throwing.
 - **ESA WorldCover is CC-BY 4.0** and requires visible attribution. It is in the
   frontend footer and the README — do not remove it while restyling.
+- **A land-cover lookup miss is `other`, not an error.** Only `cropland` and `forest`
+  polygons exist in the mask; a classifier that throws on a miss will treat most of
+  Delhi as a failure. Grassland and shrubland also read as `other`, not `forest` —
+  only tree cover does, so Telangana scrub fires land in `other` too. `other` must
+  not be treated as evidence of crop-burning: the classifier's default there is the
+  fire this project is named for (`docs/MASTER.md` §1 — the Telangana origin story).
 
 ## Definition of done
 
@@ -205,7 +218,7 @@ finding out.
 
 ## What runs automatically
 
-Four workflows in `.github/workflows/`. None of them replace running the checks
+Five workflows in `.github/workflows/`. None of them replace running the checks
 yourself — they exist to catch the case where someone didn't.
 
 | Workflow | When | What it does |
@@ -214,7 +227,7 @@ yourself — they exist to catch the case where someone didn't.
 | `contract-guard.yml` | every PR | **Fails** if the PR edits `logic/src/types.ts` without the `contract` label and a linked issue |
 | `labeler.yml` | every PR | Labels by area: `frontend`, `logic`, `pipeline`, `docs`, `repo-config`, `contract` |
 | `stale.yml` | daily, 09:00 IST | Comments on issues/PRs idle 3+ days. Never closes anything |
-| `landcover.yml` | manual only | The offline WorldCover clip-and-export. Stub |
+| `landcover.yml` | manual only (`workflow_dispatch`) | The offline WorldCover clip-and-export. Real and verified for all four regions — publishes masks to `frontend/public/landcover/` only when run with `publish=true`; every run uploads a `landcover-masks` artifact regardless, so you can inspect output before committing it. |
 
 If `contract-guard` fails on your PR, the failure message tells you the exact steps.
 Do not try to get around it by reverting the label check — the guard is the whole

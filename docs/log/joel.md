@@ -4,6 +4,140 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-21 — Offline land-cover pipeline
+
+`pipeline/landcover.sh` is real. All four masks build in about 32 seconds, and the
+workflow asserts on a known answer rather than on having run.
+
+**The stub would not have worked.** Two things in it were wrong in ways that only
+show up on a real run: it opened with `aws s3 sync s3://esa-worldcover/v200/2021/map`,
+which is terabytes and would have filled the runner disk, and the script was committed
+`100644`, so `./pipeline/landcover.sh` would have died with "Permission denied" before
+reaching any of it.
+
+**No syncing at all now.** `gdalwarp` reads the Cloud-Optimized GeoTIFFs straight off
+S3 over `/vsis3/` with `AWS_NO_SIGN_REQUEST=YES`, so it fetches only the byte ranges it
+needs and, because the output is heavily downsampled, reads a prebuilt overview level
+rather than 10m pixels it is about to throw away. That is why Punjab — four 3°×3°
+tiles — takes five seconds instead of an hour.
+
+**Three decisions worth knowing, all documented in `pipeline/README.md`:**
+
+- **390m output (0.0035°).** Roughly one VIIRS pixel. There is no point resolving land
+  cover finer than the hotspot it is being used to classify, and every step finer
+  multiplies both the polygon count and what a farmer's phone downloads.
+- **Only `cropland` and `forest` polygons are written; a miss is `other`.** That is the
+  third value, not an error. It is most of the file size gone for information nobody
+  reads. **Jammy: a lookup that throws on a miss will classify half of Delhi as a
+  failure.**
+- **Grassland and shrubland are `other`, not `forest`.** Class 10 (tree cover) alone
+  maps to `forest`, so scrub fires in Telangana land in `other`. One-line change here
+  if that turns out to matter for classification — say so rather than working around it.
+
+**Publishing was the half of this task blocked on §5.1.** With the Workers free tier
+settled, the answer is static assets in `frontend/public/landcover/`: Vite copies
+`public/` through untouched rather than bundling it, so the app fetches only the region
+the user picked instead of shipping all four in the JS. The workflow has a `publish`
+input, off by default, that commits them there.
+
+### How it was verified
+
+The bbox-to-tile arithmetic is the one piece of real logic, and the one that is
+silently wrong when it is wrong — a missing tile does not fail the run, it produces a
+mask with a blank strip down one side and every hotspot in that strip classifies as
+`other`. It has its own check, which needs no GDAL:
+
+```bash
+./pipeline/test-tiles.sh
+```
+
+```
+ok   punjab -> N27E072 N27E075 N30E072 N30E075
+ok   bihar -> N24E081 N24E084 N24E087 N27E081 N27E084 N27E087
+ok   delhi -> N27E075
+ok   telangana -> N15E075 N15E078 N15E081 N18E075 N18E078 N18E081
+ok   an unknown region is refused
+
+all tile checks passed
+```
+
+Everything downstream of that is GDAL doing GDAL's job, so it is checked by actually
+running the workflow. Two dispatches on `dev-joel`, `publish=false`:
+
+- Punjab only — https://github.com/uncoalesced/Madhuca/actions/runs/35598580851
+- All four — https://github.com/uncoalesced/Madhuca/actions/runs/35598712810
+
+```
+==> punjab: 4 tile(s), bbox 73.8 29.5 76.95 32.55
+    pipeline/out/punjab.json — 3727 features, 1.4M
+==> bihar: 6 tile(s), bbox 83.3 24.2 88.3 27.55
+    pipeline/out/bihar.json — 21339 features, 5.8M
+==> delhi: 1 tile(s), bbox 76.8 28.4 77.4 28.9
+    pipeline/out/delhi.json — 367 features, 96K
+==> telangana: 6 tile(s), bbox 77.2 15.8 81.85 19.95
+    pipeline/out/telangana.json — 15847 features, 5.0M
+
+landCover at 75.60E 30.70N: cropland
+PASS: known Punjab cropland point resolves to cropland
+```
+
+That last pair is the check the task was written around — a point known to sit in
+Punjab cropland, farmland between Ludhiana and Jagraon, resolving to `cropland`. It
+runs inside the workflow, so it cannot be skipped and then reported as passing.
+
+**5.8M for Bihar looked far too heavy for the users we actually have**, so I measured
+what goes over the wire rather than guessing, since Cloudflare serves static assets
+compressed:
+
+```
+bihar.json       raw    5.77 MB   gzip   0.73 MB   8.0x
+delhi.json       raw    0.09 MB   gzip   0.01 MB   8.2x
+punjab.json      raw    1.31 MB   gzip   0.19 MB   6.9x
+telangana.json   raw    4.92 MB   gzip   0.68 MB   7.3x
+```
+
+GeoJSON is repetitive text and compresses about 8x, so the worst region is 0.73 MB
+transferred. That is acceptable on a phone, and it is why the resolution stays at 390m
+instead of being coarsened.
+
+Last check: the output shape, and whether the class codes are the right way round. If
+40 and 10 had been swapped, every region would still build and still look plausible, so
+I compared area share against what these states are actually like — counts alone do not
+show it, because contiguous cropland merges into a few huge polygons while scattered
+tree cover fragments into thousands of small ones.
+
+```
+punjab.json     region=punjab | top-level keys: region,features | fc.type=FeatureCollection
+punjab.json     cropland 84.0%  forest 16.0%
+bihar.json      cropland 72.9%  forest 27.1%
+delhi.json      cropland 85.4%  forest 14.6%
+telangana.json  cropland 67.4%  forest 32.6%
+```
+
+Punjab at 84% cropland matches its real agricultural share, and every file is
+`{ region, features }` with a `FeatureCollection` inside — `LandCoverMask` from
+`logic/src/types.ts`, unchanged, so this is not a contract change. Percentages are of
+mapped area only, since `other` is deliberately absent.
+
+### Still open / not done
+
+- **The masks are not committed anywhere yet.** Every run so far was `publish=false`.
+  Nothing reads them until integration exists, regenerating them takes 32 seconds, and
+  committing 13 MB of GeoJSON to a branch under review seemed worse than leaving it as
+  a one-click step. Run the workflow with `publish=true` when the frontend is ready to
+  load them.
+- Publishing pushes to whichever branch the run started from, so once branch protection
+  is on it will need a bypass or a PR.
+- The region bounding boxes now exist twice — `bbox_for` in `pipeline/landcover.sh` and
+  `REGION_BBOX` in `logic/src/hotspots.ts`. Both carry a comment pointing at the other.
+  Nothing enforces it, because one side is shell that only runs in CI and the other is
+  TypeScript that ships to Workers; a mask narrower than the box the hotspots came from
+  would silently classify the edges as `other`.
+- The 2021 WorldCover release is the newest one, so these masks are not going to drift.
+  This workflow should not need running again unless a region or a class mapping changes.
+
+---
+
 ## 2026-09-21 — Live data fetchers, test runner, and §5.1 settled
 
 First real logic in the repo. `fetchHotspots` and `fetchWind` have bodies; everything

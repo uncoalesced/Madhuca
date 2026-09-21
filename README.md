@@ -40,7 +40,8 @@ out to whichever workspaces have one.
 Three more workflows run on pull requests: `contract-guard` (blocks an unannounced
 change to the shared types in `logic/src/types.ts`), `labeler` (labels a PR by the
 area it touches) and `stale` (nudges anything idle for 3 days, never closes it).
-`AGENTS.md` explains what to do when one of them fires.
+`landcover` runs manually only — see `pipeline/README.md`. `AGENTS.md` explains
+what to do when one of them fires.
 
 ## Secrets & env vars
 
@@ -61,15 +62,16 @@ so it needs no credentials either.
 |---|---|
 | `frontend/` | Vite + React + TypeScript + MapLibre GL. The map, region selector, hotspot detail panel, TTS button. |
 | `logic/` | Plain TypeScript, no framework assumptions. Fetchers, dispersion, classification, TTS wrapper. |
-| `pipeline/` | Offline ESA WorldCover clip-and-export, run in CI only. |
+| `pipeline/` | Offline ESA WorldCover clip-and-export, run in CI only (`workflow_dispatch`). Done and verified for all four regions — output lands in `frontend/public/landcover/<region>.json`, but isn't committed until a `publish=true` run; see `pipeline/README.md` for the schema and the cropland/forest/other semantics. |
 | `docs/` | `MASTER.md` (decisions) and `log/` (per-person work logs). |
 | `delegation/` | Per-person work briefs. Edit only your own. |
 
 npm workspaces ties `frontend` and `logic` together — nothing heavier.
 
-The two live fetchers in `logic/` are real. Everything else under `frontend/` and
-`logic/` is still a typed stub with a `// TODO` body. The signatures are the contract; fill in the bodies, don't reshape them
-without telling whoever builds against them.
+The two live fetchers in `logic/` are real, and so is the offline land-cover pipeline.
+Everything else under `frontend/` and `logic/` is still a typed stub with a `// TODO`
+body. The signatures are the contract; fill in the bodies, don't reshape them without
+telling whoever builds against them.
 
 ## Stack
 
@@ -80,7 +82,7 @@ runtime filesystem access — the free tier's budget is 10ms CPU per request, so
 the per-request work to fetching and cheap parsing.
 
 - [React](https://react.dev/) + [Vite](https://vite.dev/)
-- [MapLibre GL](https://maplibre.org/) — no API key required
+- [MapLibre GL](https://maplibre.org/) (`^6.10.0` — v5 carries a critical XSS advisory) — no API key required
 - [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/api/area/) — active fire hotspots
 - [Open-Meteo](https://open-meteo.com/en/docs/gfs-api) — wind, no key
 - [ESA WorldCover](https://esa-worldcover.org/en/data-access) — 10m land cover, CC-BY 4.0

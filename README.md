@@ -32,9 +32,10 @@ to `main`. It runs the same commands you run locally, so a PR that passes on you
 machine passes there — and a PR that self-reports green without having been run
 gets caught.
 
-There is no test runner configured yet, because nothing has a real body to test.
-The test step above no-ops until someone adds a `test` script to a workspace, then
-starts enforcing itself with no CI change needed.
+The test runner is Node's built-in `node:test`, run straight over TypeScript with no
+transpile step and no test dependency. `logic/` is the only workspace with real
+logic so far, so it is the only one with a `test` script; the root `npm test` fans
+out to whichever workspaces have one.
 
 Three more workflows run on pull requests: `contract-guard` (blocks an unannounced
 change to the shared types in `logic/src/types.ts`), `labeler` (labels a PR by the
@@ -46,6 +47,10 @@ area it touches) and `stale` (nudges anything idle for 3 days, never closes it).
 One secret, one place: `FIRMS_MAP_KEY` in `.env` at the repo root (gitignored).
 Get a free key from [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/api/map_key/) —
 there's a short signup lag, so request it early.
+
+`logic/` never reads the environment itself — it has to run on Workers, where secrets
+arrive on the request `env` and there is no `process`. The caller reads the key and
+passes it: `fetchHotspots(region, mapKey)`. Still never hardcoded.
 
 Open-Meteo needs no key. ESA WorldCover's S3 bucket is read with `--no-sign-request`,
 so it needs no credentials either.
@@ -62,15 +67,17 @@ so it needs no credentials either.
 
 npm workspaces ties `frontend` and `logic` together — nothing heavier.
 
-Almost everything under `frontend/` and `logic/` is a typed stub with a `// TODO`
-body. The signatures are the contract; fill in the bodies, don't reshape them
+The two live fetchers in `logic/` are real. Everything else under `frontend/` and
+`logic/` is still a typed stub with a `// TODO` body. The signatures are the contract; fill in the bodies, don't reshape them
 without telling whoever builds against them.
 
 ## Stack
 
-TypeScript end to end, deliberately — where this deploys (Cloudflare Workers vs. a
-tunnelled server, `docs/MASTER.md` §5.1) stays a deployment choice, not a rewrite.
-Keep `logic/` free of Node-only APIs and runtime filesystem access.
+TypeScript end to end, deliberately, so where this deploys stayed a deployment choice
+rather than a rewrite. It deploys to the **Cloudflare Workers free tier**
+(`docs/MASTER.md` §5.1, settled 2026-09-21). Keep `logic/` free of Node-only APIs and
+runtime filesystem access — the free tier's budget is 10ms CPU per request, so keep
+the per-request work to fetching and cheap parsing.
 
 - [React](https://react.dev/) + [Vite](https://vite.dev/)
 - [MapLibre GL](https://maplibre.org/) — no API key required

@@ -69,3 +69,30 @@ test('degrades gracefully when wind data is null or missing without throwing', (
   assert.ok(nullWindPlume.distanceKm > 0);
   assert.equal(nullWindPlume.bearingDeg, 0);
 });
+
+test('handles non-finite directionDeg and negative speedMs without throwing or returning NaN', () => {
+  // NaN directionDeg with valid wind speed
+  const nanDirPlume = computeDispersion(SAMPLE_HOTSPOT, { ...SAMPLE_WIND, directionDeg: Number.NaN });
+  assert.equal(Number.isNaN(nanDirPlume.bearingDeg), false);
+  assert.equal(nanDirPlume.bearingDeg, 0);
+
+  // Negative speedMs degrades to calm radial pooling
+  const negSpeedPlume = computeDispersion(SAMPLE_HOTSPOT, { ...SAMPLE_WIND, speedMs: -5.0 });
+  assert.equal(negSpeedPlume.spreadDeg, 180);
+  assert.ok(negSpeedPlume.distanceKm <= 5);
+});
+
+test('clamps extreme FRP values and handles zero or negative FRP safely', () => {
+  // Huge FRP fire (e.g. 5,000 MW) is capped at 80 km downwind reach
+  const megaFirePlume = computeDispersion({ ...SAMPLE_HOTSPOT, frp: 5000.0 }, SAMPLE_WIND);
+  assert.equal(megaFirePlume.distanceKm, 80);
+
+  // Zero or negative FRP defaults to minimum positive reach
+  const zeroFrpPlume = computeDispersion({ ...SAMPLE_HOTSPOT, frp: 0 }, SAMPLE_WIND);
+  assert.ok(zeroFrpPlume.distanceKm >= 1.0);
+  assert.equal(Number.isFinite(zeroFrpPlume.distanceKm), true);
+
+  const negFrpPlume = computeDispersion({ ...SAMPLE_HOTSPOT, frp: -50 }, SAMPLE_WIND);
+  assert.ok(negFrpPlume.distanceKm >= 1.0);
+  assert.equal(Number.isFinite(negFrpPlume.distanceKm), true);
+});

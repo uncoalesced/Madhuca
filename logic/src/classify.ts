@@ -58,19 +58,30 @@ function isPointInPolygon(px: number, py: number, rings: readonly (readonly (rea
   if (!outer || outer.length < 3) return false;
 
   // Bounding box pre-filter for outer ring to satisfy Workers 10ms CPU budget
-  let minX = outer[0]![0];
-  let maxX = minX;
-  let minY = outer[0]![1];
-  let maxY = minY;
-  for (let i = 1; i < outer.length; i++) {
-    const pt = outer[i];
-    if (!pt) continue;
-    const x = pt[0];
-    const y = pt[1];
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
+  const outerAny = outer as unknown as { _bbox?: [number, number, number, number] };
+  let minX: number;
+  let maxX: number;
+  let minY: number;
+  let maxY: number;
+
+  if (outerAny._bbox) {
+    [minX, maxX, minY, maxY] = outerAny._bbox;
+  } else {
+    minX = outer[0]![0];
+    maxX = minX;
+    minY = outer[0]![1];
+    maxY = minY;
+    for (let i = 1; i < outer.length; i++) {
+      const pt = outer[i];
+      if (!pt) continue;
+      const x = pt[0];
+      const y = pt[1];
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    outerAny._bbox = [minX, maxX, minY, maxY];
   }
 
   if (px < minX || px > maxX || py < minY || py > maxY) {

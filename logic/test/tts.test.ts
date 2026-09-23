@@ -84,3 +84,55 @@ test('surfaces non-OK HTTP status from Indic-TTS', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test('synthesizes speech in Telugu (te) and English (en) with custom options', async () => {
+  const originalFetch = globalThis.fetch;
+  let capturedUrl = '';
+  let capturedPayload: any = null;
+
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    capturedUrl = String(url);
+    capturedPayload = JSON.parse(String(init?.body));
+    return new Response(
+      JSON.stringify({ audioContent: 'AQIDBA==' }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    // Telugu with male voice and custom endpoint
+    const customEndpoint = 'https://custom-tts.internal/synthesize';
+    await synthesizeSpeech('జాగ్రత్త! సమీపంలో మంటలు', 'te', {
+      endpoint: customEndpoint,
+      gender: 'male',
+    });
+
+    assert.equal(capturedUrl, customEndpoint);
+    assert.equal(capturedPayload.config.language.sourceLanguage, 'te');
+    assert.equal(capturedPayload.config.gender, 'male');
+
+    // English with female voice
+    await synthesizeSpeech('Fire warning nearby', 'en');
+    assert.equal(capturedPayload.config.language.sourceLanguage, 'en');
+    assert.equal(capturedPayload.config.gender, 'female');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('throws error when JSON response contains no audioContent', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () => {
+    return new Response(
+      JSON.stringify({ audio: [] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(() => synthesizeSpeech('Alert message', 'hi'), /no audioContent/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

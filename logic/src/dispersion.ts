@@ -25,7 +25,9 @@ export function computeDispersion(hotspot: Hotspot, wind: Wind | null): Plume {
   }
 
   // Meteorological wind direction is where wind blows FROM; plume bearing is where smoke travels TO.
-  const bearingDeg = Math.round(((wind.directionDeg + 180) % 360 + 360) % 360);
+  const bearingDeg = Number.isFinite(wind.directionDeg)
+    ? Math.round(((wind.directionDeg + 180) % 360 + 360) % 360)
+    : 0;
 
   // Downwind reach scales with wind speed and square-root of FRP, capped at 80 km
   const rawDistance = (0.5 + 0.35 * wind.speedMs) * Math.sqrt(frp);

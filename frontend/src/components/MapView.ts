@@ -78,6 +78,10 @@ export function MapView({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  // Latest plume data, read by the map 'load' handler. Data often arrives before the
+  // style finishes loading, and a closure over the first render would draw nothing.
+  const plumeDataRef = useRef(createPlumeFeatureCollection(hotspots, plumes, classifications));
+  plumeDataRef.current = createPlumeFeatureCollection(hotspots, plumes, classifications);
 
   // Initialize MapLibre GL map
   useEffect(() => {
@@ -98,10 +102,9 @@ export function MapView({
 
     map.on('load', () => {
       // Add plume source and layers
-      const plumeData = createPlumeFeatureCollection(hotspots, plumes, classifications);
       map.addSource('plumes-source', {
         type: 'geojson',
-        data: plumeData,
+        data: plumeDataRef.current,
       });
 
       map.addLayer({
@@ -156,10 +159,7 @@ export function MapView({
     if (!map || !map.isStyleLoaded()) return;
 
     const source = map.getSource('plumes-source') as maplibregl.GeoJSONSource | undefined;
-    if (source) {
-      const plumeData = createPlumeFeatureCollection(hotspots, plumes, classifications);
-      source.setData(plumeData);
-    }
+    source?.setData(plumeDataRef.current);
   }, [hotspots, plumes, classifications]);
 
   // Update markers
@@ -211,7 +211,7 @@ export function MapView({
     React.createElement('div', {
       ref: mapContainerRef,
       className: 'maplibre-map-root',
-      style: { width: '100%', height: '100%', minHeight: '380px' },
+      style: { position: 'absolute', inset: 0 },
     }),
     React.createElement(
       'div',

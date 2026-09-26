@@ -102,7 +102,7 @@ test('HotspotDetailPanel renders full details and audio section when active', ()
     })
   );
 
-  assert.ok(html.includes('MODIS-PB-001'), 'Expected hotspot ID');
+  assert.ok(html.includes('About 14 km South-East of Jalandhar'), 'Expected nearest-town line');
   assert.ok(html.includes('Likely Crop Stubble Burning'), 'Expected classification badge');
   assert.ok(html.includes('38.5 MW'), 'Expected FRP value');
   assert.ok(html.includes('What this means for you'), 'Expected plain language advisory header');

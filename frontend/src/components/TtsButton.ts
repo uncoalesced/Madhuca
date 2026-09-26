@@ -109,16 +109,16 @@ export function TtsButton({ text, langCode = 'hi', endpoint }: TtsButtonProps) {
   const getButtonText = () => {
     switch (playbackState) {
       case 'loading':
-        return '⏳ Synthesizing Voice...';
+        return 'Synthesizing voice...';
       case 'playing':
-        return `⏸ Pause Audio (${langLabel})`;
+        return `Pause audio (${langLabel})`;
       case 'paused':
-        return `▶ Resume Audio (${langLabel})`;
+        return `Resume audio (${langLabel})`;
       case 'error':
-        return `⚠️ Retry Audio (${errorMessage ?? 'Failed'})`;
+        return `Retry audio (${errorMessage ?? 'Failed'})`;
       case 'idle':
       default:
-        return `🔊 Listen Alert in ${langLabel}`;
+        return `Listen Alert in ${langLabel}`;
     }
   };
 

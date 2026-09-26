@@ -2,6 +2,120 @@
 
 Log finished, *tested* work here, newest entry on top. Format: date (IST), what was built, how it was verified (include the test command and what passing looked like).
 
+## 2026-09-26 (IST) — Server path: Worker `/api/radar`, CPU numbers, TTS endpoint check
+
+Built:
+
+- **`logic/src/radar.ts` (`runRadar`)**: the whole region loop. It fetches FIRMS, then wind in parallel, one call per 0.25 degree cell. Then it runs dispersion and classification. A failed wind call falls back to calm-wind dispersion. A FIRMS failure throws, because an empty list would read as an all-clear. It lives in `logic/` because it is `fetch` plus pure computation, so the frontend can reuse it too. `frontend/src/App.ts` still has its own client-side copy. Joel removes that when he wires the frontend to `/api/radar` on the 28th. I did not edit `frontend/`.
+- **`worker/` workspace**: the Cloudflare Worker `GET /api/radar?region=`.
+  - The FIRMS key comes from `env.FIRMS_MAP_KEY`, a Worker secret. Locally it goes in `worker/.dev.vars`, which is gitignored.
+  - The masks are read from static assets (`env.ASSETS`, pointed at `frontend/public`). Each parsed mask is cached for the isolate's lifetime. A failed mask load is not cached.
+  - Status codes: 200 is `{hotspots, plumes, classifications}`. 400 means an unknown region. 500 means the key is missing (the error says "not an all-clear") or the mask is missing. 502 means FIRMS failed, and the key never appears in the body. 404 is any other path.
+  - New devDependency: `wrangler` (the Workers CLI). You cannot run or deploy a Worker without it.
+- **`worker/bench/cpu-budget.ts`**: CPU time per region for each part of the work.
+- **CI emoji step** now also walks `worker/src`, `worker/test` and `worker/bench`.
+- **Flaky test fixed**: `classify.test.ts` "handles real landcover mask file from delhi.json" failed 1 run in 7. It timed a cold call (index build included) against 10ms of wall clock, while `node --test` runs files in parallel. It now times a warm lookup, which is what its message claims to measure. The bench measures the cold cost. After the fix: 10 of 10 runs passed.
+
+### CPU budget: over, on a cold isolate, for 3 of 4 regions
+
+`node worker/bench/cpu-budget.ts`. Two runs on this laptop, wall time around synchronous code. (`process.cpuUsage` ticks in 15.6ms steps on Windows, so it is too coarse here.)
+
+```
+region     mask_MB  parse_ms  index_ms  warm_100_ms  cold_total_ms
+punjab        1.38      26.6      37.8         0.30           64.6
+bihar         6.05     123.2      40.3         0.29          163.8
+delhi         0.10       2.1       0.4         0.73            3.2
+telangana     5.16      98.6      41.2         0.24          140.0
+```
+```
+region     mask_MB  parse_ms  index_ms  warm_100_ms  cold_total_ms
+punjab        1.38      41.4      64.9         1.10          107.5
+bihar         6.05     170.5      86.8         0.39          257.7
+delhi         0.10       2.0       0.4         0.67            3.1
+telangana     5.16     150.6      47.4         0.31          198.3
+```
+(The second run was taken while `wrangler dev` was also running.)
+
+What the numbers mean:
+- **Warm is fine.** When the mask is already parsed and indexed, 100 hotspots take under about 1ms of dispersion and classification.
+- **Cold is not.** On the first request for a region in a fresh isolate, parsing the mask and building the index take 60 to 260ms for Punjab, Bihar and Telangana. That is 6 to 25 times the 10ms free-tier budget.
+- **Delhi is within budget** even cold.
+
+This is a Node proxy on a laptop, not Cloudflare's own measurement. The dashboard CPU chart after the deploy is the real check.
+
+This needs a team decision now, not on the 30th. I have not picked an option:
+1. **Classify in the browser.** The Worker returns hotspots and plumes, both cheap. The client classifies against the masks it already downloads today. The FIRMS key still stays server-side.
+2. **Precompute the index offline** in the pipeline, as a compact binary that loads without `JSON.parse`. This is real work, and the pipeline is Joel's area.
+3. **Ship as-is.** Cold requests for 3 regions may be killed with error 1102. Warm requests are fine.
+
+### Live checks
+
+`wrangler dev` (workerd, `worker/.dev.vars` holding a placeholder key, since the real key is not on this machine). Then curl each region:
+
+```
+== punjab
+{"error":"FIRMS responded 400 Bad Request"}
+HTTP 502 1.532854s
+== bihar
+{"error":"FIRMS responded 400 Bad Request"}
+HTTP 502 1.525012s
+== delhi
+{"error":"FIRMS responded 400 Bad Request"}
+HTTP 502 1.357481s
+== telangana
+{"error":"FIRMS responded 400 Bad Request"}
+HTTP 502 1.506103s
+== kerala
+{"error":"region must be one of: punjab, bihar, delhi, telangana"}
+HTTP 400 0.212325s
+mask asset HTTP 200 95977B
+```
+
+This proves that the Worker runs under workerd and loads each region's mask from assets. The mask loads before FIRMS is called, so reaching FIRMS means the mask loaded. It also proves that the Worker reaches live FIRMS and turns a rejected key into a 502 without leaking the key. **It does not prove a 200 with real fires.** That needs the real key in `worker/.dev.vars`, so the "Worker entry" box stays unticked.
+
+**TTS endpoint.** A live call on 2026-09-26 17:41 UTC:
+```
+curl: (6) Could not resolve host: tts.indicnlp.org
+*** one.one.one.one can't find tts.indicnlp.org: Non-existent domain
+```
+The control, `api.open-meteo.com` from the same shell, returned HTTP 200. The default endpoint in `logic/src/tts.ts` does not exist (NXDOMAIN), so any TTS call made without an explicit `endpoint` fails. The text-only fallback, labelled as such, is needed. That fallback is in the frontend (Joel's area); I did not build it.
+
+### Verification Commands and Output
+
+```bash
+npm run typecheck
+npm run build
+npm test --workspaces --if-present
+node worker/bench/cpu-budget.ts
+```
+
+Passing looks like this. Typecheck and build exit 0. The tests print one block per workspace, in the order logic, worker, frontend:
+```
+# tests 61
+# pass 61
+# fail 0
+# tests 5
+# pass 5
+# fail 0
+# tests 25
+# pass 25
+# fail 0
+```
+The new tests are `logic/test/radar.test.ts` (4) and `worker/test/index.test.ts` (5):
+- 5 hotspots in one cell plus 1 elsewhere make exactly 2 wind calls.
+- A failed wind call gives a 180-degree calm plume, and all 6 fires are still classified.
+- A FIRMS 500 throws. A zero-row FIRMS answer is empty and makes 0 wind calls.
+- Ludhiana (30.8, 75.6) in October, classified against the real `punjab.json` read through the ASSETS stub, is `cropland` / `likely-crop-burning`.
+- The statuses: 500 for no key, 502 without the key in the body, 400, 404, and 500 for a missing mask.
+
+What these do not cover:
+- A 200 from the Worker with real FIRMS data. That needs the real key.
+- CPU as Cloudflare bills it.
+- The deployed route.
+- CORS. The Worker sets none; it assumes Pages and the Worker share the madhuca.uncoalesced.com origin.
+
+---
+
 ## 2026-09-26 (IST) — Review pass: classifier budget fix, and four bias/edge bugs
 
 Re-ran everything first: 42/42 passing, typecheck and build green — the four ticked tasks were real. Review then found:

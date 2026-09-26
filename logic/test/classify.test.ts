@@ -166,6 +166,10 @@ test('handles real landcover mask file from frontend/public/landcover/delhi.json
     satellite: 'SNPP',
   };
 
+  // The first call builds the mask index, paid once per isolate; its cost per region
+  // is measured by worker/bench/cpu-budget.ts. Timing it here, while node --test runs
+  // files in parallel, made this test flaky. What is timed is the per-hotspot lookup.
+  classifyHotspot(forestHotspot, delhiMask);
   const start = performance.now();
   const classification = classifyHotspot(forestHotspot, delhiMask);
   const elapsed = performance.now() - start;

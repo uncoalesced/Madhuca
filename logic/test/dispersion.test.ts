@@ -96,3 +96,16 @@ test('clamps extreme FRP values and handles zero or negative FRP safely', () => 
   assert.ok(negFrpPlume.distanceKm >= 1.0);
   assert.equal(Number.isFinite(negFrpPlume.distanceKm), true);
 });
+
+test('keeps bearingDeg in [0, 360) when rounding lands on the wrap point', () => {
+  // 179.6 FROM -> 359.6 TO, which must round to 0, not 360.
+  assert.equal(computeDispersion(SAMPLE_HOTSPOT, { ...SAMPLE_WIND, directionDeg: 179.6 }).bearingDeg, 0);
+  assert.equal(computeDispersion(SAMPLE_HOTSPOT, { ...SAMPLE_WIND, speedMs: 0, directionDeg: 179.6 }).bearingDeg, 0);
+  // Out-of-range inputs still wrap.
+  assert.equal(computeDispersion(SAMPLE_HOTSPOT, { ...SAMPLE_WIND, directionDeg: -90 }).bearingDeg, 90);
+  assert.equal(computeDispersion(SAMPLE_HOTSPOT, { ...SAMPLE_WIND, directionDeg: 450 }).bearingDeg, 270);
+  for (let d = 0; d < 360; d += 0.1) {
+    const b = computeDispersion(SAMPLE_HOTSPOT, { ...SAMPLE_WIND, directionDeg: d }).bearingDeg;
+    assert.ok(b >= 0 && b < 360, `direction ${d} gave bearing ${b}`);
+  }
+});

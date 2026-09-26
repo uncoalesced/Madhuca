@@ -136,3 +136,22 @@ test('throws error when JSON response contains no audioContent', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test('accepts regional BCP-47 tags such as hi-IN and sends the bare language code', async () => {
+  const originalFetch = globalThis.fetch;
+  const sent: string[] = [];
+
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    sent.push(JSON.parse(String(init?.body)).config.language.sourceLanguage);
+    return new Response(new Uint8Array([1]), { status: 200, headers: { 'content-type': 'audio/wav' } });
+  }) as typeof fetch;
+
+  try {
+    await synthesizeSpeech('सावधान', 'hi-IN');
+    await synthesizeSpeech('ਖ਼ਤਰਾ', 'pa_IN');
+    assert.deepEqual(sent, ['hi', 'pa']);
+    await assert.rejects(() => synthesizeSpeech('Alert', 'fr-FR'), /unsupported/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

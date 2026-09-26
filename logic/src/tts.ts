@@ -39,7 +39,8 @@ export async function synthesizeSpeech(
     throw new Error('TTS synthesis text cannot be empty');
   }
 
-  const normalizedLang = langCode.trim().toLowerCase();
+  // Browsers report regional tags ('hi-IN', 'pa_IN'); the voice only depends on the language.
+  const normalizedLang = langCode.trim().toLowerCase().split(/[-_]/)[0] ?? '';
   if (!SUPPORTED_TTS_LANGUAGES.includes(normalizedLang as SupportedTtsLanguage)) {
     throw new Error(
       `Unsupported TTS language code '${langCode}'. Supported languages: ${SUPPORTED_TTS_LANGUAGES.join(', ')}`,

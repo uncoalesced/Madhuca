@@ -1,6 +1,15 @@
 import type { Hotspot, Plume, Wind } from './types';
 
 /**
+ * Meteorological wind direction is where wind blows FROM; plume bearing is where
+ * smoke travels TO. Rounds before wrapping so e.g. 179.6° FROM gives 0, not 360.
+ */
+function downwindBearing(wind: Wind | null): number {
+  if (!wind || !Number.isFinite(wind.directionDeg)) return 0;
+  return (((Math.round(wind.directionDeg) + 180) % 360) + 360) % 360;
+}
+
+/**
  * Simplified Gaussian-puff plume approximation — NOT real NOAA HYSPLIT
  * (docs/MASTER.md §4). Physically reasonable, not publication-accurate.
  * In: one hotspot + wind at its coordinate. Out: downwind bearing, reach, spread.
@@ -10,11 +19,10 @@ import type { Hotspot, Plume, Wind } from './types';
 export function computeDispersion(hotspot: Hotspot, wind: Wind | null): Plume {
   const frp = Math.max(1, Number.isFinite(hotspot.frp) ? hotspot.frp : 1);
 
+  const bearingDeg = downwindBearing(wind);
+
   // Missing wind or calm conditions (< 0.5 m/s): degrade gracefully to radial pooling
   if (!wind || !Number.isFinite(wind.speedMs) || wind.speedMs < 0.5) {
-    const bearingDeg = wind && Number.isFinite(wind.directionDeg)
-      ? Math.round(((wind.directionDeg + 180) % 360 + 360) % 360)
-      : 0;
     // Local stagnation pool reach scales with fire size, capped at 5 km
     const distanceKm = Math.round(Math.min(5, Math.max(0.5, 0.25 * Math.sqrt(frp))) * 10) / 10;
     return {
@@ -23,11 +31,6 @@ export function computeDispersion(hotspot: Hotspot, wind: Wind | null): Plume {
       spreadDeg: 180, // Full radial dispersion
     };
   }
-
-  // Meteorological wind direction is where wind blows FROM; plume bearing is where smoke travels TO.
-  const bearingDeg = Number.isFinite(wind.directionDeg)
-    ? Math.round(((wind.directionDeg + 180) % 360 + 360) % 360)
-    : 0;
 
   // Downwind reach scales with wind speed and square-root of FRP, capped at 80 km
   const rawDistance = (0.5 + 0.35 * wind.speedMs) * Math.sqrt(frp);

@@ -82,6 +82,24 @@ The region bounding boxes are duplicated in `logic/src/hotspots.ts` as `REGION_B
 and a mask that does not cover the box the hotspots came from silently classifies the
 edges as `other`.
 
+## India border (`india-border.mjs`)
+
+FIRMS is queried by the same bounding boxes, and the Punjab box reaches into Pakistan
+and the Bihar box into Nepal. `logic/src/india-border.ts` holds India's border clipped
+to each box, and `fetchHotspots` drops any detection outside it.
+
+It is generated once, by hand, from Natural Earth 1:10m admin-0 (India point of view,
+public domain). Regenerate it if `REGION_BBOX` changes:
+
+```bash
+curl -sSLo /tmp/ne_ind.geojson https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_ind.geojson
+node pipeline/india-border.mjs /tmp/ne_ind.geojson
+```
+
+Simplified at 0.001 deg (about 100 m). At 0.005 deg a real fire 500 m from the Punjab
+border landed on the wrong side, so do not loosen it to save vertices: the whole file
+is about 700 vertices and a region check costs well under 1 ms.
+
 ## Attribution
 
 ESA WorldCover v200 (2021), CC-BY 4.0. © ESA WorldCover project 2021 / Contains

@@ -140,3 +140,21 @@ export function getPlumeSummary(plume?: Plume): {
     safetyAdvice: `Downwind communities to the ${compass} will experience smoke and reduced visibility.`,
   };
 }
+
+/** Great-circle distance (km) and initial bearing (degrees, 0 = north) from point A to point B. */
+export function distanceAndBearing(
+  latA: number,
+  lonA: number,
+  latB: number,
+  lonB: number
+): { distanceKm: number; bearingDeg: number } {
+  const p1 = toRad(latA);
+  const p2 = toRad(latB);
+  const dLat = p2 - p1;
+  const dLon = toRad(lonB - lonA);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dLon / 2) ** 2;
+  const distanceKm = 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
+  const y = Math.sin(dLon) * Math.cos(p2);
+  const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dLon);
+  return { distanceKm, bearingDeg: (toDeg(Math.atan2(y, x)) + 360) % 360 };
+}

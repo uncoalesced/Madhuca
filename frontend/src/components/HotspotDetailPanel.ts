@@ -1,7 +1,38 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Classification, Hotspot, Plume, Region } from '@madhuca/logic';
 import { TtsButton } from './TtsButton.ts';
-import { bearingToCompass, getPlumeSummary } from '../utils/plumeGeometry.ts';
+import { bearingToCompass, distanceAndBearing, getPlumeSummary } from '../utils/plumeGeometry.ts';
+
+// District towns in and around the four regions, approximate centre coordinates.
+// ponytail: fixed list, swap for a gazetteer if village-level labels (MASTER.md 5.3) land.
+const TOWNS: ReadonlyArray<readonly [string, number, number]> = [
+  ['Amritsar', 31.634, 74.872], ['Ludhiana', 30.901, 75.857], ['Jalandhar', 31.326, 75.576],
+  ['Patiala', 30.34, 76.386], ['Bathinda', 30.211, 74.945], ['Firozpur', 30.925, 74.613],
+  ['Sangrur', 30.245, 75.844], ['Moga', 30.817, 75.174], ['Gurdaspur', 32.041, 75.405],
+  ['Hoshiarpur', 31.532, 75.912],
+  ['Patna', 25.594, 85.137], ['Gaya', 24.796, 85.008], ['Bhagalpur', 25.244, 86.972],
+  ['Muzaffarpur', 26.12, 85.39], ['Darbhanga', 26.152, 85.897], ['Purnia', 25.778, 87.475],
+  ['Ara', 25.556, 84.663], ['Begusarai', 25.418, 86.133], ['Chhapra', 25.78, 84.747],
+  ['Motihari', 26.648, 84.917], ['Sasaram', 24.953, 84.031],
+  ['New Delhi', 28.614, 77.209], ['Narela', 28.853, 77.093], ['Najafgarh', 28.609, 76.98],
+  ['Rohini', 28.736, 77.113], ['Shahdara', 28.673, 77.289], ['Gurugram', 28.459, 77.027],
+  ['Noida', 28.535, 77.391], ['Ghaziabad', 28.669, 77.454], ['Faridabad', 28.408, 77.317],
+  ['Hyderabad', 17.385, 78.487], ['Warangal', 17.969, 79.594], ['Karimnagar', 18.438, 79.129],
+  ['Nizamabad', 18.672, 78.094], ['Khammam', 17.247, 80.151], ['Adilabad', 19.664, 78.532],
+  ['Mahabubnagar', 16.737, 77.988], ['Nalgonda', 17.058, 79.267], ['Mancherial', 18.873, 79.463],
+  ['Kothagudem', 17.551, 80.619], ['Bhadrachalam', 17.669, 80.893],
+];
+
+/** "12 km NE of Ludhiana": where the fire sits relative to the closest listed town. */
+export function nearestTownText(lat: number, lon: number): string {
+  let best = { name: '', distanceKm: Infinity, bearingDeg: 0 };
+  for (const [name, tLat, tLon] of TOWNS) {
+    const d = distanceAndBearing(tLat, tLon, lat, lon);
+    if (d.distanceKm < best.distanceKm) best = { name, ...d };
+  }
+  if (best.distanceKm < 1) return `In ${best.name}`;
+  return `About ${Math.round(best.distanceKm)} km ${bearingToCompass(best.bearingDeg)} of ${best.name}`;
+}
 
 export interface HotspotDetailPanelProps {
   hotspot: Hotspot | null;
@@ -65,6 +96,11 @@ export function HotspotDetailPanel({
   region,
   onClose,
 }: HotspotDetailPanelProps) {
+  // Hooks run before any early return so the hook count never changes between renders.
+  const defaultLang = region === 'punjab' ? 'pa' : region === 'telangana' ? 'te' : 'hi';
+  const [selectedLang, setSelectedLang] = useState<string>(defaultLang);
+  useEffect(() => setSelectedLang(defaultLang), [hotspot?.id, defaultLang]);
+
   if (!hotspot) {
     return React.createElement('aside', {
       className: 'hotspot-detail-panel hotspot-panel-empty',
@@ -72,9 +108,6 @@ export function HotspotDetailPanel({
     });
   }
 
-  // Default initial TTS language based on region
-  const defaultLang = region === 'punjab' ? 'pa' : region === 'telangana' ? 'te' : 'hi';
-  const [selectedLang, setSelectedLang] = useState<string>(defaultLang);
 
   const intensity = getIntensityLabel(hotspot.frp);
   const plumeSummary = getPlumeSummary(plume);
@@ -90,10 +123,10 @@ export function HotspotDetailPanel({
     : 'badge-other';
 
   const badgeLabel = isWildfire
-    ? '🌲 Likely Wildfire / Forest Fire'
+    ? 'Likely Wildfire / Forest Fire'
     : isCropBurning
-    ? '🌾 Likely Crop Stubble Burning'
-    : '⚠️ Active Fire Hotspot';
+    ? 'Likely Crop Stubble Burning'
+    : 'Active Fire Hotspot';
 
   return React.createElement(
     'aside',
@@ -110,7 +143,7 @@ export function HotspotDetailPanel({
         'div',
         { className: 'panel-header-title-group' },
         React.createElement('span', { className: `classification-badge ${badgeClass}` }, badgeLabel),
-        React.createElement('h3', { className: 'panel-title' }, `Hotspot ${hotspot.id}`)
+        React.createElement('h3', { className: 'panel-title' }, nearestTownText(hotspot.lat, hotspot.lon))
       ),
       React.createElement(
         'button',
@@ -152,7 +185,7 @@ export function HotspotDetailPanel({
     React.createElement(
       'div',
       { className: 'panel-card advisory-card' },
-      React.createElement('div', { className: 'card-title' }, '💡 What this means for you'),
+      React.createElement('div', { className: 'card-title' }, 'What this means for you'),
       React.createElement('p', { className: 'advisory-text' }, alertText),
       classification?.rationale &&
         React.createElement('div', { className: 'card-note', style: { marginTop: '0.35rem' } }, `Scientific reason: ${classification.rationale}`)
@@ -166,7 +199,7 @@ export function HotspotDetailPanel({
       React.createElement(
         'div',
         { className: 'panel-card' },
-        React.createElement('div', { className: 'card-title' }, '🧭 Smoke Dispersion (Wind)'),
+        React.createElement('div', { className: 'card-title' }, 'Smoke Dispersion (Wind)'),
         React.createElement('div', { className: 'card-value' }, plumeSummary.directionText),
         React.createElement('div', { className: 'card-subtext' }, plumeSummary.reachText),
         React.createElement('p', { className: 'card-note' }, plumeSummary.safetyAdvice)
@@ -176,7 +209,7 @@ export function HotspotDetailPanel({
       React.createElement(
         'div',
         { className: 'panel-card' },
-        React.createElement('div', { className: 'card-title' }, '🔥 Fire Intensity & Power'),
+        React.createElement('div', { className: 'card-title' }, 'Fire Intensity & Power'),
         React.createElement('div', { className: `card-value severity-${intensity.severity}` }, `${hotspot.frp.toFixed(1)} MW`),
         React.createElement('div', { className: 'card-subtext' }, intensity.label),
         React.createElement(

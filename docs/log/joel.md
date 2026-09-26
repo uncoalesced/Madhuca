@@ -4,6 +4,128 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-26 — Hotspots clipped to the India border
+
+The first live FIRMS run (key now in gitignored `frontend/.env.local` and `.env`)
+returned 33 "Punjab" hotspots. 16 of them were in Pakistan, because FIRMS is queried
+by bounding box and the Punjab box reaches past Wagah; the Bihar box likewise reaches
+into Nepal. The live CSV has no `country_id` column, so the border has to come from us.
+
+- `pipeline/india-border.mjs` (one-off, plain Node): Natural Earth 1:10m admin-0,
+  India point of view, clipped to each `REGION_BBOX` + 0.2 deg (Sutherland-Hodgman),
+  simplified at 0.001 deg. Writes `logic/src/india-border.ts`: punjab 171 vertices,
+  bihar 402, delhi 4, telangana 134.
+- `fetchHotspots` filters with `insideIndia(region, lon, lat)`, an even-odd ray cast.
+  `parseHotspotCsv` is unchanged.
+- First attempt simplified at 0.005 deg. Checked against the unsimplified polygon, it
+  put a real fire at 31.10034 N, 74.63828 E (about 500 m from the border) on the wrong
+  side. At 0.001 deg: 0 disagreements on the 33 live points and on 20,000 random points
+  in the Punjab box; one region check over 33 hotspots takes 0.05 ms.
+
+### How to re-run
+
+```bash
+npm test --workspaces --if-present
+```
+
+New tests in `logic/test/hotspots.test.ts`: Amritsar, Raxaul, Patna, New Delhi and
+Hyderabad inside; Lahore, Sialkot and Birgunj (Nepal) outside; `fetchHotspots` given
+Amritsar + Lahore returns only Amritsar.
+
+Output (26 Sept):
+
+```
+ℹ tests 57
+ℹ pass 57
+ℹ fail 0
+ℹ tests 25
+ℹ pass 25
+ℹ fail 0
+```
+
+`npm run typecheck` clean, `npm run build` "built in 2.85s", emoji scan exit 0.
+Browser, live key, Punjab: banner went from 33 to 17 hotspots at 0.005 deg, and to 16
+at 0.001 deg ("16 Active Fire Hotspots in Punjab", 16 markers on the map).
+
+### Not covered
+
+- Bihar returned 0 live hotspots today, so the Nepal side is proven by the unit test only.
+- The border is Natural Earth's, accurate to a few hundred metres; a fire right on the
+  line can still land on the wrong side.
+- The land-cover masks are still clipped by box, not border. Nothing outside India
+  reaches the classifier now, so this has no effect.
+
+---
+
+## 2026-09-26 — Frontend rework after a browser test run
+
+The frontend from commit 0119bea typechecked, built and passed its unit tests, but a
+run in the browser showed it did not work end to end. Fixed in `frontend/`:
+
+- **False all-clear.** `App.ts` called `runRadarPipeline(region, undefined, ...)`, so
+  FIRMS was never queried and every region said "Clean Skies". A missing key is now an
+  error: "FIRMS key not configured, so no fire data was fetched. This is not an
+  all-clear." In `npm run dev` only, the key can come from `VITE_FIRMS_MAP_KEY` for
+  local testing; the branch is compiled out of production builds.
+- **Blank map.** Two causes: `maplibre-gl.css` was never imported (now in `main.tsx`,
+  not `MapView.ts`, so node tests can still import the component), and Vite's dep
+  pre-bundling moved maplibre into `.vite/deps` without its worker file, so the worker
+  404'd and no tiles loaded (`optimizeDeps.exclude` in `vite.config.ts`). The map
+  `load` handler also read a stale closure, so plumes arriving before `load` never
+  drew; it now reads a ref.
+- **Layout.** The map canvas was 4096px tall and pushed the ESA attribution footer off
+  screen. The app is now a viewport-height flex column; the footer stays visible.
+- **Detail panel.** `useState` ran after an early return (hook-order bug), now fixed.
+  The title is "About N km <direction> of <town>" instead of a raw satellite ID, which
+  also delivers the brief's nearest-town item (`distanceAndBearing` in
+  `utils/plumeGeometry.ts`, fixed town list in the panel).
+- **Wind** is fetched in parallel, one call per 0.25 degree cell. The try/catch that
+  forced any classification failure to "likely-wildfire" is gone.
+- **Emoji:** all 16 lines removed (issue #5).
+- **`?demo`** (dev only) loads fake hotspots from `frontend/src/demoHotspots.ts`,
+  labelled "DEMO DATA, not real fires". A Telangana demo point first landed on
+  cropland; the classifier was right, the point was moved onto forest (16.2, 78.7).
+
+### How it was verified
+
+Browser (Claude Code preview, `npm run dev`):
+- `http://localhost:5173/` shows the red no-key error banner, basemap tiles, and the footer inside the viewport.
+- `http://localhost:5173/?demo` (Punjab): 4 markers (2 stubble, 2 wildfire), plume wedges, and tapping a marker opened the panel reading "About 15 km West of Ludhiana". No console errors from app code.
+- Prod bundle: `grep "DEMO DATA\|VITE_FIRMS" frontend/dist/assets/*.js` finds nothing. The fake coordinate array is still in the bundle but unreachable.
+
+Commands:
+
+```bash
+npm run typecheck
+npm run build
+npm test --workspaces --if-present
+```
+
+Output (26 Sept, this branch):
+
+```
+> @madhuca/frontend@0.0.0 typecheck
+> tsc --noEmit
+
+✓ built in 2.84s
+ℹ tests 55
+ℹ pass 55
+ℹ fail 0
+ℹ tests 25
+ℹ pass 25
+ℹ fail 0
+emoji scan exit=0
+```
+
+### Not covered / still open
+
+- TTS playback not tested against the live endpoint.
+- Compass words are English inside Hindi/Punjabi/Telugu alert text.
+- Favicon 404, and one unexplained failed name lookup in the console.
+- No automated tests yet for no-key → error, 3 hotspots → 3 markers, or panel close/reopen. Those were checked by hand in the browser only.
+
+---
+
 ## 2026-09-21 — Land-cover masks published, and a bug in the publish step
 
 All four masks are now committed at `frontend/public/landcover/<region>.json` and

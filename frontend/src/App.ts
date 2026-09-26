@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   type Classification,
@@ -13,6 +14,7 @@ import {
 import { MapView } from './components/MapView.ts';
 import { RegionSelector, REGION_LABELS } from './components/RegionSelector.ts';
 import { HotspotDetailPanel } from './components/HotspotDetailPanel.ts';
+import { demoHotspots } from './demoHotspots.ts';
 
 export interface PipelineResult {
   hotspots: Hotspot[];
@@ -69,6 +71,14 @@ export async function runRadarPipeline(
       const msg = err instanceof Error ? err.message : 'Failed to fetch FIRMS hotspots';
       return { hotspots: [], plumes: {}, classifications: {}, error: msg };
     }
+  } else {
+    // No key means nothing was checked. That is an error, never an all-clear.
+    return {
+      hotspots: [],
+      plumes: {},
+      classifications: {},
+      error: 'FIRMS key not configured, so no fire data was fetched. This is not an all-clear.',
+    };
   }
 
   if (hotspots.length === 0) {
@@ -84,25 +94,20 @@ export async function runRadarPipeline(
   const plumes: Record<string, Plume> = {};
   const classifications: Record<string, Classification> = {};
 
-  for (const hs of hotspots) {
-    // Wind & Dispersion
-    try {
-      const wind = await fetchWind(hs.lat, hs.lon).catch(() => null);
-      plumes[hs.id] = computeDispersion(hs, wind);
-    } catch {
-      plumes[hs.id] = computeDispersion(hs, null);
-    }
+  // One wind call per 0.25 degree cell, all in parallel. Nearby fires share a cell,
+  // and a failed call degrades to calm-wind dispersion instead of failing the scan.
+  const cellKey = (hs: Hotspot) => `${Math.round(hs.lat * 4) / 4},${Math.round(hs.lon * 4) / 4}`;
+  const cells = new Map<string, Hotspot>();
+  for (const hs of hotspots) if (!cells.has(cellKey(hs))) cells.set(cellKey(hs), hs);
+  const winds = new Map(
+    await Promise.all(
+      [...cells].map(async ([key, hs]) => [key, await fetchWind(hs.lat, hs.lon).catch(() => null)] as const)
+    )
+  );
 
-    // Land-cover classification
-    try {
-      classifications[hs.id] = classifyHotspot(hs, mask);
-    } catch {
-      classifications[hs.id] = {
-        kind: 'likely-wildfire',
-        landCover: 'other',
-        rationale: 'Thermal anomaly detected in unclassified terrain.',
-      };
-    }
+  for (const hs of hotspots) {
+    plumes[hs.id] = computeDispersion(hs, winds.get(cellKey(hs)) ?? null);
+    classifications[hs.id] = classifyHotspot(hs, mask);
   }
 
   return {
@@ -111,6 +116,11 @@ export async function runRadarPipeline(
     classifications,
   };
 }
+
+// `?demo` in `npm run dev` swaps FIRMS for fake hotspots (frontend/src/demoHotspots.ts).
+// Dev only, so a production build can never show fake fires as real.
+const IS_DEMO =
+  !!import.meta.env?.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo');
 
 export type RadarStatus = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -132,7 +142,11 @@ export function App() {
     setSelected(null);
 
     try {
-      const result = await runRadarPipeline(targetRegion, undefined, {
+      // Dev only: Vite inlines VITE_ variables into the bundle, so a production build
+      // must never read the key here. Production goes through the Worker (docs/ROADMAP.md).
+      const devKey = import.meta.env?.DEV ? import.meta.env.VITE_FIRMS_MAP_KEY : undefined;
+      const result = await runRadarPipeline(targetRegion, devKey, {
+        mockHotspots: IS_DEMO ? demoHotspots(targetRegion) : undefined,
         onProgress: setProgressMsg,
       });
 
@@ -179,7 +193,7 @@ export function App() {
       React.createElement(
         'div',
         { className: 'brand-container' },
-        React.createElement('h1', { className: 'brand-title' }, '🌿 Madhuca'),
+        React.createElement('h1', { className: 'brand-title' }, 'Madhuca'),
         React.createElement(
           'span',
           { className: 'brand-subtitle' },
@@ -197,7 +211,7 @@ export function App() {
         React.createElement(
           'div',
           { className: 'status-banner banner-loading' },
-          React.createElement('span', { className: 'spinner-icon' }, '⏳'),
+          React.createElement('span', { className: 'spinner-icon', 'aria-hidden': 'true' }),
           React.createElement('span', null, progressMsg)
         ),
 
@@ -205,7 +219,6 @@ export function App() {
         React.createElement(
           'div',
           { className: 'status-banner banner-empty' },
-          React.createElement('span', null, '🟢'),
           React.createElement(
             'span',
             null,
@@ -217,7 +230,6 @@ export function App() {
         React.createElement(
           'div',
           { className: 'status-banner banner-error' },
-          React.createElement('span', null, '⚠️'),
           React.createElement('span', null, errorMessage ?? 'Unable to complete radar scan.'),
           React.createElement(
             'button',
@@ -226,7 +238,7 @@ export function App() {
               className: 'retry-button',
               onClick: () => executePipeline(region),
             },
-            '↻ Retry Scan'
+            'Retry scan'
           )
         ),
 
@@ -234,10 +246,10 @@ export function App() {
         React.createElement(
           'div',
           { className: 'status-banner banner-ready' },
-          React.createElement('span', null, '🔥'),
           React.createElement(
             'span',
             null,
+            (IS_DEMO ? 'DEMO DATA, not real fires. ' : '') +
             `${hotspots.length} Active Fire Hotspot${hotspots.length > 1 ? 's' : ''} in ${activeRegionLabel} (` +
               `${stubbleCount} Stubble Burning, ${wildfireCount} Wildfire)`
           )

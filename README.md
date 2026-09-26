@@ -86,6 +86,8 @@ the per-request work to fetching and cheap parsing.
 - [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/api/area/) — active fire hotspots
 - [Open-Meteo](https://open-meteo.com/en/docs/gfs-api) — wind, no key
 - [ESA WorldCover](https://esa-worldcover.org/en/data-access) — 10m land cover, CC-BY 4.0
+- [Natural Earth](https://www.naturalearthdata.com/) 1:10m admin-0, India point of view — public domain; the India border that drops FIRMS hotspots in Pakistan and Nepal (`pipeline/india-border.mjs`)
+- [CARTO Positron](https://carto.com/basemaps) basemap tiles, OpenStreetMap data — credited in the map's attribution control
 - [AI4Bharat Indic-TTS](https://github.com/AI4Bharat/Indic-TTS) — self-hosted, Hindi + Punjabi first
 
 The dispersion model is a simplified Gaussian-puff approximation driven by live wind,

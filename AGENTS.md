@@ -53,6 +53,11 @@ questions: do not build against those.**
 `delegation/{joel,rahul,jammy}.md` are per-person work briefs and define who owns
 what. Each person edits only their own brief and their own `docs/log/` file.
 
+**Read `docs/CODING_STANDARDS.md` before writing any code or log entry.** It holds the
+house rules every agent and person follows: zero emoji in code (a CI step fails on
+them), honest documentation, and never showing an all-clear that was not measured.
+`docs/ROADMAP.md` is the day-by-day plan to the 30 Sept submission.
+
 ## Architecture
 
 Three workspaces, split by where the work runs, not by feature:

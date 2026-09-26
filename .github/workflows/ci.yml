@@ -20,6 +20,24 @@ jobs:
 
       - run: npm ci
 
+      # docs/CODING_STANDARDS.md section 1: zero emoji in code.
+      - name: No emoji
+        run: |
+          node -e "
+          const fs = require('fs'), path = require('path');
+          // (C) (R) TM are Extended_Pictographic too, but the ESA attribution needs the (C).
+          const re = /(?![©®™])\p{Extended_Pictographic}/u;
+          let bad = 0;
+          const walk = (d) => { if (!fs.existsSync(d)) return; for (const f of fs.readdirSync(d)) {
+            const p = path.join(d, f);
+            if (fs.statSync(p).isDirectory()) { if (f !== 'node_modules') walk(p); continue; }
+            if (!/\.(ts|tsx|js|mjs|css|html|sh|py)$/.test(f)) continue;
+            fs.readFileSync(p, 'utf8').split('\n').forEach((l, i) => { if (re.test(l)) { bad++; console.log(p + ':' + (i + 1) + ': ' + l.trim()); } });
+          } };
+          ['frontend/src', 'frontend/test', 'logic/src', 'logic/test', 'pipeline'].forEach(walk);
+          if (bad) { console.error(bad + ' line(s) with emoji. See docs/CODING_STANDARDS.md.'); process.exit(1); }
+          "
+
       - name: Typecheck
         run: npm run typecheck
 

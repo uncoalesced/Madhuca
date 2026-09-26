@@ -1,8 +1,8 @@
 # Jammy — Work Brief
 
-Read `docs/MASTER.md` first for the full project context, settled architecture, and the open questions list. Read `delegation/joel.md` and `delegation/rahul.md` for context on what the other two are building. **Do not edit `joel.md` or `rahul.md` — read-only for context.** Edit only this file (to check off tasks) and `docs/log/jammy.md` (to log finished work).
+Read `docs/MASTER.md` first for the full project context, settled architecture, and the open questions list. `docs/ROADMAP.md` is the day-by-day plan to the 30th and `docs/CODING_STANDARDS.md` has the house rules (zero emoji in code, CI-enforced; honest logs). Read `delegation/joel.md` and `delegation/rahul.md` for context on what the other two are building. **Do not edit `joel.md` or `rahul.md` — read-only for context.** Edit only this file (to check off tasks) and `docs/log/jammy.md` (to log finished work).
 
-## Your area: the science/logic core + TTS
+## Your area: the science/logic core, TTS, and the server path
 
 This is the part that decides what gets shown, not how it looks. It should be pure, testable functions wherever possible — given the same input, always the same output. That makes it the easiest part of this project to prove actually works, which matters a lot given the antigravity note below.
 
@@ -17,6 +17,17 @@ This is the part that decides what gets shown, not how it looks. It should be pu
   - Keep the point-in-polygon check itself cheap: plain ray-casting over the mask's coordinates, no geometry library. `docs/MASTER.md` §5.1 settled on the Cloudflare Workers **free tier** — 10ms CPU covers the *whole region's hotspot loop*, not one hotspot, so this and the dispersion module are the two places that budget actually bites.
 - [x] **AI4Bharat Indic-TTS integration (`logic/src/tts.ts`, `synthesizeSpeech`)** — self-hosted, open-source. Takes an alert text string + language code, returns audio. Start with Hindi and Punjabi (matches the Punjab/Bihar/Delhi region focus); add more if time allows. Wrap it as a small, clean function/API that Rahul's frontend can call — agree the input/output contract with him before he wires the play button to it.
 - [x] **Unit tests for the above** — dispersion and classification are both pure math/logic, which means they're the easiest thing in this whole project to test properly. Write real test cases: a hotspot with a known wind direction should produce a plume pointed the right way; a hotspot planted inside a known cropland polygon during stubble season should classify as likely crop-burning; one inside a forest polygon outside that season should classify as likely wildfire; one that hits `other` should not crash and should not default to crop-burning. Edge cases worth covering: zero/calm wind, a hotspot exactly on a land-cover boundary, missing/null wind data (don't crash — degrade gracefully). `wind.test.ts` and `hotspots.test.ts` in `logic/test/` are the existing pattern to follow — same `node:test` runner, no new dependency.
+
+### Server path (added 2026-09-26)
+
+The logic core is done; what's left is running it where the FIRMS key can stay secret. Right now `frontend/src/App.ts` runs the whole pipeline in the browser, which cannot ship: the key would be public. These move it into a Cloudflare Worker (free tier, `docs/MASTER.md` §5.1).
+
+- [ ] **Worker entry `GET /api/radar?region=`** — reads the FIRMS key from `env` (a Worker secret), then runs `fetchHotspots` → wind → `computeDispersion` → `classifyHotspot` and returns `{ hotspots, plumes, classifications }` (the same shape as `PipelineResult` in `frontend/src/App.ts`, minus `error`, which becomes an HTTP status). Check: `wrangler dev` + `curl` returns JSON for each of the four regions.
+- [ ] **Wind fetch in the Worker** — move the parallel wind fetch, deduped per 0.25 degree cell, out of `frontend/src/App.ts` into the Worker. A failed wind call degrades to calm-wind dispersion, never fails the scan. Check: a test where N hotspots in one cell make exactly 1 wind call.
+- [ ] **Land-cover masks in the Worker** — read `frontend/public/landcover/<region>.json` from static assets. Check: a test classifying a known Punjab cropland point.
+- [ ] **CPU budget** — measure CPU time per region against the 10ms free-tier limit, especially Bihar and Telangana (5–6 MB masks; parsing them alone may blow it). Check: CPU numbers logged per region. If it's over, say so on the 28th, not the 30th.
+- [ ] **TTS endpoint reality check** — confirm the default Indic-TTS endpoint in `logic/src/tts.ts` actually answers from a live call. If it doesn't, the frontend falls back to showing text only, labelled as such. Check: the live call result logged.
+- [ ] **Deploy support** — Worker secrets and routes with Joel on the 29th. Check: live `/api/radar` answers.
 
 ## Definition of done (per task — this matters, read it)
 

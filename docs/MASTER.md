@@ -42,7 +42,10 @@ Punjab, Bihar, Delhi, Telangana. Chosen for a mix of stubble-burning prevalence 
 - **Live, per-request work is intentionally light:** fetch FIRMS hotspots, fetch wind for each hotspot's coordinates, run a Gaussian-puff dispersion approximation (not full HYSPLIT — see below), do a point-in-polygon lookup against the precomputed land-cover mask, return it to the frontend to render. All of this is simple enough to run as plain scripts rather than a heavy service.
 - **Deployment:** the Cloudflare Workers **free tier** (settled 2026-09-21, see §5.1). Budget is 10ms CPU per request and 100k requests/day. Waiting on `fetch` does not count against CPU, but parsing and arithmetic do, and the 10ms covers the whole on-demand loop for a region rather than one hotspot. `logic/` therefore stays `fetch`-and-pure-computation only, with no date/CSV/GeoJSON library on the request path.
 - **Dispersion model:** a simplified Gaussian-puff plume calculation driven by live wind data, not real NOAA HYSPLIT (which needs a native binary plus multi-GB meteorological archives — not worth the setup cost in a 10-day window). Labeled honestly in the pitch as "HYSPLIT-inspired simplified dispersion," not a claim of running the real thing.
-- **TTS:** AI4Bharat Indic-TTS, self-hosted/open-source, for reading alerts aloud in Indic languages. Starting languages: Hindi + Punjabi (confirm with Rahul's/Jammy's region priorities as regions get built out).
+- **TTS:** AI4Bharat Indic-TTS, self-hosted/open-source, for reading alerts aloud in Indic languages. Supported: Hindi, Punjabi, Telugu, English (`SUPPORTED_TTS_LANGUAGES` in `logic/src/tts.ts`). The live endpoint has not yet been confirmed reachable; if it isn't, the UI shows the alert as text only.
+- **Where the pipeline runs:** in a Cloudflare Worker (`GET /api/radar?region=`), not the browser. The FIRMS key is a Worker secret and never a `VITE_` variable, because Vite inlines those into the public bundle. Until the Worker exists, `frontend/src/App.ts` runs the pipeline client-side for local development only.
+- **No false all-clear:** "no fires detected" is shown only after a real FIRMS response returned zero rows. A missing key or failed fetch is an error state.
+- **Demo mode:** `npm run dev` with `?demo` swaps FIRMS for labelled fake hotspots (`frontend/src/demoHotspots.ts`) so the UI can be tested without a key. Every scan using them says "DEMO DATA, not real fires", and production builds compile the mode out.
 - **Openness:** the codebase is fully open source. Individual dependencies we use don't have to be open source themselves — closed-source tools/APIs are fine as long as their use is disclosed (e.g. in the README's stack section).
 - **Dispatch:** no automated outbound calls/SMS to officials — ruled out for legal reasons (TRAI DLT registration for automated voice calls to Indian numbers takes 3–7 business days of paperwork the team doesn't have, with real per-call penalties for non-compliance) and because the product direction shifted to a self-serve lookup tool rather than a push-alert system anyway.
 
@@ -58,9 +61,15 @@ Punjab, Bihar, Delhi, Telangana. Chosen for a mix of stubble-burning prevalence 
 - `delegation/` — who's doing what (`joel.md`, `rahul.md`, `jammy.md`). Each person edits only their own file.
 - `docs/log/` — a running log per person of what was actually built and tested, dated. Update your own after finishing each task.
 - `docs/MASTER.md` — this file. Decisions only.
+- `docs/ROADMAP.md` — day-by-day plan to the 30 Sept submission, who does what.
+- `docs/CODING_STANDARDS.md` — house rules for everyone: zero emoji in code (CI-enforced), honest documentation, no unmeasured all-clear.
 
 ---
 *Log of decisions to this file (newest first):*
+- **2026-09-26** — The frontend is now owned by Joel; Rahul moves to QA and pitch support. A 26 Sept browser run found the frontend showing "Clean Skies" without ever calling FIRMS, a blank map and an off-screen attribution footer; all three are fixed (`docs/log/joel.md`).
+- **2026-09-26** — The pipeline moves into a Cloudflare Worker (`/api/radar`) so the FIRMS key stays a secret; Jammy owns it. Wind fetches are parallel and deduped per 0.25 degree cell.
+- **2026-09-26** — A missing key or failed fetch is an error, never an all-clear. Added a dev-only `?demo` mode with fake hotspots that are always labelled as such.
+- **2026-09-26** — `docs/CODING_STANDARDS.md` adopted: zero emoji in code, enforced by a CI step; log entries must paste real output and state what a check does not cover.
 - **2026-09-21** — Land-cover masks carry **only `cropland` and `forest` polygons**; a point that matches nothing is `other`. That is the third value, not an error — a classifier that throws on a miss would treat most of Delhi as a failure. Output is 390m (about one VIIRS pixel), and tree cover alone is `forest`, so grassland and shrubland read as `other`. Masks are published as static assets in `frontend/public/landcover/`, which §5.1 unblocked. Details in `pipeline/README.md`.
 - **2026-09-21** — §5.1 settled: deploying to the **Cloudflare Workers free tier**. Accepts a 10ms CPU budget per request for the whole region loop, which constrains dispersion and classification to cheap arithmetic — no request-path libraries for dates, CSV or GeoJSON.
 - **2026-09-21** — Live fetchers landed (`fetchHotspots`, `fetchWind`). `fetchHotspots` takes the FIRMS key as an argument instead of reading the environment, because Workers has no `process` and passes secrets on the request `env`.

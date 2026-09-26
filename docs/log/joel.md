@@ -4,6 +4,75 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-26 — Frontend rework after a browser test run
+
+The frontend from commit 0119bea typechecked, built and passed its unit tests, but a
+run in the browser showed it did not work end to end. Fixed in `frontend/`:
+
+- **False all-clear.** `App.ts` called `runRadarPipeline(region, undefined, ...)`, so
+  FIRMS was never queried and every region said "Clean Skies". A missing key is now an
+  error: "FIRMS key not configured, so no fire data was fetched. This is not an
+  all-clear." In `npm run dev` only, the key can come from `VITE_FIRMS_MAP_KEY` for
+  local testing; the branch is compiled out of production builds.
+- **Blank map.** Two causes: `maplibre-gl.css` was never imported (now in `main.tsx`,
+  not `MapView.ts`, so node tests can still import the component), and Vite's dep
+  pre-bundling moved maplibre into `.vite/deps` without its worker file, so the worker
+  404'd and no tiles loaded (`optimizeDeps.exclude` in `vite.config.ts`). The map
+  `load` handler also read a stale closure, so plumes arriving before `load` never
+  drew; it now reads a ref.
+- **Layout.** The map canvas was 4096px tall and pushed the ESA attribution footer off
+  screen. The app is now a viewport-height flex column; the footer stays visible.
+- **Detail panel.** `useState` ran after an early return (hook-order bug), now fixed.
+  The title is "About N km <direction> of <town>" instead of a raw satellite ID, which
+  also delivers the brief's nearest-town item (`distanceAndBearing` in
+  `utils/plumeGeometry.ts`, fixed town list in the panel).
+- **Wind** is fetched in parallel, one call per 0.25 degree cell. The try/catch that
+  forced any classification failure to "likely-wildfire" is gone.
+- **Emoji:** all 16 lines removed (issue #5).
+- **`?demo`** (dev only) loads fake hotspots from `frontend/src/demoHotspots.ts`,
+  labelled "DEMO DATA, not real fires". A Telangana demo point first landed on
+  cropland; the classifier was right, the point was moved onto forest (16.2, 78.7).
+
+### How it was verified
+
+Browser (Claude Code preview, `npm run dev`):
+- `http://localhost:5173/` shows the red no-key error banner, basemap tiles, and the footer inside the viewport.
+- `http://localhost:5173/?demo` (Punjab): 4 markers (2 stubble, 2 wildfire), plume wedges, and tapping a marker opened the panel reading "About 15 km West of Ludhiana". No console errors from app code.
+- Prod bundle: `grep "DEMO DATA\|VITE_FIRMS" frontend/dist/assets/*.js` finds nothing. The fake coordinate array is still in the bundle but unreachable.
+
+Commands:
+
+```bash
+npm run typecheck
+npm run build
+npm test --workspaces --if-present
+```
+
+Output (26 Sept, this branch):
+
+```
+> @madhuca/frontend@0.0.0 typecheck
+> tsc --noEmit
+
+✓ built in 2.84s
+ℹ tests 55
+ℹ pass 55
+ℹ fail 0
+ℹ tests 25
+ℹ pass 25
+ℹ fail 0
+emoji scan exit=0
+```
+
+### Not covered / still open
+
+- TTS playback not tested against the live endpoint.
+- Compass words are English inside Hindi/Punjabi/Telugu alert text.
+- Favicon 404, and one unexplained failed name lookup in the console.
+- No automated tests yet for no-key → error, 3 hotspots → 3 markers, or panel close/reopen. Those were checked by hand in the browser only.
+
+---
+
 ## 2026-09-21 — Land-cover masks published, and a bug in the publish step
 
 All four masks are now committed at `frontend/public/landcover/<region>.json` and

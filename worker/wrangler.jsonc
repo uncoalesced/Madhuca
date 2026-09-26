@@ -1,0 +1,14 @@
+// Cloudflare Workers free tier (docs/MASTER.md section 5.1).
+// Secret, set once per environment and never committed:
+//   npx wrangler secret put FIRMS_MAP_KEY      (deployed)
+//   worker/.dev.vars: FIRMS_MAP_KEY=...        (wrangler dev; gitignored)
+{
+  "name": "madhuca",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    // Only the land-cover masks are needed here; the Worker reads them via env.ASSETS.
+    "directory": "../frontend/public",
+    "binding": "ASSETS"
+  }
+}

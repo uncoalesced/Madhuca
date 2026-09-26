@@ -7,3 +7,5 @@ build/
 .DS_Store
 pipeline/tmp/
 pipeline/out/
+.dev.vars
+.wrangler/

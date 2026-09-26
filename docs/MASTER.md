@@ -66,6 +66,7 @@ Punjab, Bihar, Delhi, Telangana. Chosen for a mix of stubble-burning prevalence 
 
 ---
 *Log of decisions to this file (newest first):*
+- **2026-09-26** — Hotspots outside India are dropped. The first live FIRMS run returned 33 "Punjab" fires, 16 of them in Pakistan, because regions are queried as bounding boxes. `fetchHotspots` now filters against India's border (Natural Earth 1:10m, India point of view), clipped per region in `logic/src/india-border.ts`. The land-cover masks are still box-clipped; that does not matter, since nothing outside India reaches them now.
 - **2026-09-26** — The frontend is now owned by Joel; Rahul moves to QA and pitch support. A 26 Sept browser run found the frontend showing "Clean Skies" without ever calling FIRMS, a blank map and an off-screen attribution footer; all three are fixed (`docs/log/joel.md`).
 - **2026-09-26** — The pipeline moves into a Cloudflare Worker (`/api/radar`) so the FIRMS key stays a secret; Jammy owns it. Wind fetches are parallel and deduped per 0.25 degree cell.
 - **2026-09-26** — A missing key or failed fetch is an error, never an all-clear. Added a dev-only `?demo` mode with fake hotspots that are always labelled as such.

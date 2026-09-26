@@ -34,7 +34,7 @@ Still open:
 - The compass word is English inside Hindi/Punjabi/Telugu alert text.
 - The favicon returns 404, and one failed name lookup in the console is unexplained.
 - No tests yet for no-key → error, 3 hotspots → 3 markers, or panel close/reopen.
-- There is no FIRMS key and no Worker yet.
+- There is no Worker yet. The FIRMS key exists but only in local gitignored env files.
 
 **Key handling:** the FIRMS key goes in a Worker secret, never in a `VITE_` variable,
 because Vite ships those to every visitor. The Worker runs the pipeline and the
@@ -44,7 +44,8 @@ frontend calls it.
 
 | When | Task | Check |
 |---|---|---|
-| 26 Sept | Get the FIRMS MAP_KEY | `fetchHotspots` returns rows live for one region |
+| 26 Sept | ~~Get the FIRMS MAP_KEY~~ **done** (local only, gitignored) | Live run: 33 Punjab hotspots |
+| 26 Sept | ~~Drop hotspots outside India (the Punjab box reached into Pakistan, Bihar into Nepal)~~ **done** | `npm test`: Amritsar kept, Lahore and Birgunj dropped; live Punjab 33 to 16 |
 | 26 Sept | ~~Frontend rework: honest error state, map, layout, hook order, nearest town, emoji, `?demo`~~ **done** | `docs/log/joel.md` 2026-09-26 |
 | 27 Sept | Frontend leftovers: localized compass words, favicon, the missing tests above | `npm test` covers each one |
 | 28 Sept | Wire the frontend to Jammy's `/api/radar` | Browser run: markers appear for a region with live fires |

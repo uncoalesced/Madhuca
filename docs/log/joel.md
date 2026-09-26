@@ -4,6 +4,59 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-26 — Hotspots clipped to the India border
+
+The first live FIRMS run (key now in gitignored `frontend/.env.local` and `.env`)
+returned 33 "Punjab" hotspots. 16 of them were in Pakistan, because FIRMS is queried
+by bounding box and the Punjab box reaches past Wagah; the Bihar box likewise reaches
+into Nepal. The live CSV has no `country_id` column, so the border has to come from us.
+
+- `pipeline/india-border.mjs` (one-off, plain Node): Natural Earth 1:10m admin-0,
+  India point of view, clipped to each `REGION_BBOX` + 0.2 deg (Sutherland-Hodgman),
+  simplified at 0.001 deg. Writes `logic/src/india-border.ts`: punjab 171 vertices,
+  bihar 402, delhi 4, telangana 134.
+- `fetchHotspots` filters with `insideIndia(region, lon, lat)`, an even-odd ray cast.
+  `parseHotspotCsv` is unchanged.
+- First attempt simplified at 0.005 deg. Checked against the unsimplified polygon, it
+  put a real fire at 31.10034 N, 74.63828 E (about 500 m from the border) on the wrong
+  side. At 0.001 deg: 0 disagreements on the 33 live points and on 20,000 random points
+  in the Punjab box; one region check over 33 hotspots takes 0.05 ms.
+
+### How to re-run
+
+```bash
+npm test --workspaces --if-present
+```
+
+New tests in `logic/test/hotspots.test.ts`: Amritsar, Raxaul, Patna, New Delhi and
+Hyderabad inside; Lahore, Sialkot and Birgunj (Nepal) outside; `fetchHotspots` given
+Amritsar + Lahore returns only Amritsar.
+
+Output (26 Sept):
+
+```
+ℹ tests 57
+ℹ pass 57
+ℹ fail 0
+ℹ tests 25
+ℹ pass 25
+ℹ fail 0
+```
+
+`npm run typecheck` clean, `npm run build` "built in 2.85s", emoji scan exit 0.
+Browser, live key, Punjab: banner went from 33 to 17 hotspots at 0.005 deg, and to 16
+at 0.001 deg ("16 Active Fire Hotspots in Punjab", 16 markers on the map).
+
+### Not covered
+
+- Bihar returned 0 live hotspots today, so the Nepal side is proven by the unit test only.
+- The border is Natural Earth's, accurate to a few hundred metres; a fire right on the
+  line can still land on the wrong side.
+- The land-cover masks are still clipped by box, not border. Nothing outside India
+  reaches the classifier now, so this has no effect.
+
+---
+
 ## 2026-09-26 — Frontend rework after a browser test run
 
 The frontend from commit 0119bea typechecked, built and passed its unit tests, but a

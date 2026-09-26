@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { fetchHotspots, parseHotspotCsv, REGION_BBOX } from '../src/hotspots.ts';
+import { fetchHotspots, insideIndia, parseHotspotCsv, REGION_BBOX } from '../src/hotspots.ts';
 
 // A recorded FIRMS VIIRS_SNPP_NRT area response. Header is the real column set;
 // the rows are two Punjab detections, the older one listed first on purpose so
@@ -77,11 +77,11 @@ test('rejects an empty map key before making a request', async () => {
 test('queries the selected region bbox and never leaks the key in an error', async () => {
   const { value, seen } = await withStubbedFetch(
     () => new Response(RECORDED_CSV, { status: 200 }),
-    () => fetchHotspots('telangana', 'secret-key'),
+    () => fetchHotspots('punjab', 'secret-key'),
   );
 
   assert.equal(value.length, 2);
-  assert.ok(seen[0]?.includes(REGION_BBOX.telangana.join(',')), seen[0]);
+  assert.ok(seen[0]?.includes(REGION_BBOX.punjab.join(',')), seen[0]);
   assert.ok(seen[0]?.includes('VIIRS_SNPP_NRT'));
 
   const { seen: failed } = await withStubbedFetch(
@@ -102,4 +102,29 @@ test('every v1 region has a west,south,east,north bbox', () => {
     assert.ok(west < east, `${region} bbox west/east inverted`);
     assert.ok(south < north, `${region} bbox south/north inverted`);
   }
+});
+
+test('insideIndia separates towns on either side of the border', () => {
+  // Punjab box reaches into Pakistan, Bihar box into Nepal.
+  assert.equal(insideIndia('punjab', 74.87, 31.63), true, 'Amritsar');
+  assert.equal(insideIndia('punjab', 74.35, 31.55), false, 'Lahore');
+  assert.equal(insideIndia('punjab', 74.53, 32.49), false, 'Sialkot');
+  assert.equal(insideIndia('bihar', 84.85, 26.97), true, 'Raxaul');
+  assert.equal(insideIndia('bihar', 84.88, 27.02), false, 'Birgunj, Nepal');
+  assert.equal(insideIndia('bihar', 85.14, 25.59), true, 'Patna');
+  assert.equal(insideIndia('delhi', 77.21, 28.61), true, 'New Delhi');
+  assert.equal(insideIndia('telangana', 78.49, 17.39), true, 'Hyderabad');
+});
+
+test('fetchHotspots drops detections outside India', async () => {
+  const csv = `latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
+31.63,74.87,330,0.4,0.4,2026-09-26,0800,N,VIIRS,n,2.0NRT,295,5,D
+31.55,74.35,330,0.4,0.4,2026-09-26,0800,N,VIIRS,n,2.0NRT,295,5,D
+`;
+  const { value } = await withStubbedFetch(
+    () => new Response(csv, { status: 200 }),
+    () => fetchHotspots('punjab', 'secret-key'),
+  );
+
+  assert.deepEqual(value.map((h) => h.lon), [74.87], 'Amritsar kept, Lahore dropped');
 });

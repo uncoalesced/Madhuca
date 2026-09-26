@@ -2,6 +2,56 @@
 
 Log finished, *tested* work here, newest entry on top. Format: date (IST), what was built, how it was verified (include the test command and what passing looked like).
 
+## 2026-09-26 (IST) — Review pass: classifier budget fix, and four bias/edge bugs
+
+Re-ran everything first: 42/42 passing, typecheck and build green — the four ticked tasks were real. Review then found:
+
+- **Classifier blew the Workers budget.** The lookup scanned every polygon per hotspot, and each mask is dominated by one region-spanning polygon (Bihar's largest: ~65k vertices, ~13k holes), so 500 random Bihar hotspots took ~456ms. The old "under Cloudflare budget" test only classified one point at 25.0,80.0 — outside Punjab, Bihar and Telangana — so it never touched a polygon. Replaced with a grid index (0.05° cells): each cell stores its edges and which polygons contain its centre; a lookup counts crossings only from the centre to the point. Still plain ray-casting, no geometry library. Built once per mask object (WeakMap), no mutation of the caller's mask. Handles float-rounded cell boundaries, edges lying on a cell-centre line, and sliver overlaps between independently-simplified polygons (earliest feature wins, same as naive first-hit).
+- **Unparseable `acquiredAt` defaulted to October** — i.e. stubble season — tilting `other` fires toward crop-burning. Now an unknown season.
+- **Unknown FRP defaulted to 20 MW**, inside the 5–60 MW crop-burning band. Now unknown, which never matches the signature.
+- **`bearingDeg` could be 360** (e.g. wind from 179.6°) because rounding happened after the wrap. Now rounds first; always in [0, 360).
+- **TTS rejected `hi-IN` / `pa_IN`** — what browsers report. Now reduced to the primary subtag.
+
+Each of the new regression tests was also run against the pre-fix source and fails there (6 failures), so they test the bugs, not just the fix.
+
+Not fixed here, for the team: `JSON.parse` of the Bihar mask (6 MB) is itself tens of ms of CPU, and the index build is 20–65ms per mask. Both are fine in a browser or a warm isolate that keeps the parsed mask at module scope, but on a cold Worker they exceed 10ms before any hotspot is classified. Where classification runs (browser vs Worker) is not settled in any doc I could find.
+
+### Verification Commands and Output
+
+```bash
+npm test
+npm run typecheck
+npm run build
+```
+
+Passing looks like `# tests 55`, `# pass 55`, `# fail 0`, with these among them:
+
+```
+ok 12 - punjab: indexed lookup matches naive ray-casting on 400 points across the region bbox
+ok 13 - bihar: indexed lookup matches naive ray-casting on 400 points across the region bbox
+ok 14 - delhi: indexed lookup matches naive ray-casting on 400 points across the region bbox
+ok 15 - telangana: indexed lookup matches naive ray-casting on 400 points across the region bbox
+ok 16 - classifies a 1000-hotspot region loop inside the 10ms Workers budget once the mask is indexed
+# bihar index build: 24.7ms (once per mask object)
+# 1000 hotspots: 4.19ms
+ok 17 - finds a polygon whose edge sits on a float-rounded cell boundary
+ok 18 - resolves points just above and below an edge lying exactly on a cell centre line
+ok 19 - resolves a sliver overlap between two polygons to the earlier feature, without corrupting the row
+ok 20 - does not mutate the caller's mask
+ok 21 - an unparseable acquiredAt is an unknown season, not stubble season
+ok 22 - an unknown FRP does not match the moderate-FRP crop-burning signature on other land
+ok 23 - a Telangana scrub fire in peak stubble season with moderate FRP is still likely wildfire
+ok 31 - keeps bearingDeg in [0, 360) when rounding lands on the wrap point
+ok 48 - accepts regional BCP-47 tags such as hi-IN and sends the bare language code
+# tests 55
+# pass 55
+# fail 0
+```
+
+`npm run typecheck` and `npm run build` both exit 0.
+
+---
+
 ## 2026-09-23 (IST) — Complete edge-case hardening, multi-polygon support, and full 4-region mask verification
 
 Built & Verified:

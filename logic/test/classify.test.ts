@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { classifyHotspot } from '../src/classify.ts';
-import type { Hotspot, LandCoverMask } from '../src/types.ts';
+import { REGION_BBOX } from '../src/hotspots.ts';
+import { REGIONS, type Hotspot, type LandCoverMask } from '../src/types.ts';
 
 const MOCK_MASK: LandCoverMask = {
   region: 'punjab',
@@ -346,32 +347,178 @@ test('handles MultiPolygon geometries correctly', () => {
   assert.equal(classifyHotspot(outside, multiPolyMask).landCover, 'other');
 });
 
-test('handles real landcover masks for Punjab, Bihar, and Telangana under Cloudflare budget', () => {
-  const rootDir = process.cwd().endsWith('logic') ? join(process.cwd(), '..') : process.cwd();
+// --- Real masks: the index must agree with naive ray-casting, and be cheap ---
 
-  const regions = ['punjab', 'bihar', 'telangana'] as const;
-  for (const reg of regions) {
-    const maskPath = join(rootDir, 'frontend', 'public', 'landcover', `${reg}.json`);
-    const rawJson = readFileSync(maskPath, 'utf-8');
-    const mask: LandCoverMask = JSON.parse(rawJson);
+function hotspotAt(lon: number, lat: number, overrides: Partial<Hotspot> = {}): Hotspot {
+  return {
+    id: `VIIRS:${lat}:${lon}`,
+    lat,
+    lon,
+    frp: 20,
+    confidence: 'n',
+    acquiredAt: '2026-10-15T10:00:00Z',
+    satellite: 'SNPP',
+    ...overrides,
+  };
+}
 
-    const testHotspot: Hotspot = {
-      id: `VIIRS:test:${reg}`,
-      lat: 25.0,
-      lon: 80.0,
-      frp: 20.0,
-      confidence: 'n',
-      acquiredAt: '2026-10-15T10:00:00Z',
-      satellite: 'SNPP',
-    };
+/** Deterministic points so a failure reproduces. */
+function seededPoints(bbox: readonly number[], count: number): [number, number][] {
+  const [west, south, east, north] = bbox as [number, number, number, number];
+  let seed = 12345;
+  const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  return Array.from({ length: count }, () => [west + rand() * (east - west), south + rand() * (north - south)]);
+}
 
-    const start = performance.now();
-    const result = classifyHotspot(testHotspot, mask);
-    const elapsed = performance.now() - start;
-
-    assert.ok(result.kind);
-    assert.ok(result.landCover);
-    assert.ok(result.rationale);
-    assert.ok(elapsed < 20, `${reg} lookup took ${elapsed}ms`);
+/** Reference answer: ray-cast every polygon in mask order, first hit wins. */
+function naiveLandCover(lon: number, lat: number, mask: LandCoverMask): string {
+  const inRing = (ring: number[][]) => {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i] as [number, number];
+      const [xj, yj] = ring[j] as [number, number];
+      if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  for (const f of (mask.features as { features: any[] }).features) {
+    const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+    for (const [outer, ...holes] of polys) {
+      if (inRing(outer) && !holes.some(inRing)) return f.properties.landCover;
+    }
   }
+  return 'other';
+}
+
+function loadMask(region: string): LandCoverMask {
+  const rootDir = process.cwd().endsWith('logic') ? join(process.cwd(), '..') : process.cwd();
+  return JSON.parse(readFileSync(join(rootDir, 'frontend', 'public', 'landcover', `${region}.json`), 'utf-8'));
+}
+
+for (const region of REGIONS) {
+  test(`${region}: indexed lookup matches naive ray-casting on 400 points across the region bbox`, () => {
+    const mask = loadMask(region);
+    const seen = new Set<string>();
+    for (const [lon, lat] of seededPoints(REGION_BBOX[region], 400)) {
+      const got = classifyHotspot(hotspotAt(lon, lat), mask).landCover;
+      assert.equal(got, naiveLandCover(lon, lat, mask), `at ${lon},${lat}`);
+      seen.add(got);
+    }
+    // The sample must actually exercise polygons, not just misses.
+    assert.ok(seen.has('cropland'), `${region}: no cropland hit in sample`);
+  });
+}
+
+test('classifies a 1000-hotspot region loop inside the 10ms Workers budget once the mask is indexed', (t) => {
+  // Bihar is the largest mask (~21k polygons, one with ~65k vertices).
+  const mask = loadMask('bihar');
+  const hotspots = seededPoints(REGION_BBOX.bihar, 1000).map(([lon, lat]) => hotspotAt(lon, lat));
+
+  const buildStart = performance.now();
+  classifyHotspot(hotspots[0]!, mask);
+  t.diagnostic(`bihar index build: ${(performance.now() - buildStart).toFixed(1)}ms (once per mask object)`);
+
+  for (const h of hotspots) classifyHotspot(h, mask); // JIT warm-up, as in a long-lived isolate
+  const start = performance.now();
+  for (const h of hotspots) classifyHotspot(h, mask);
+  const elapsed = performance.now() - start;
+  t.diagnostic(`1000 hotspots: ${elapsed.toFixed(2)}ms`);
+  assert.ok(elapsed < 10, `1000-hotspot loop took ${elapsed}ms, budget is 10ms`);
+});
+
+// --- Grid boundaries: the cases that broke the first cut of the index ---
+
+/** Cropland 0..1 with a hole; a forest island fills the hole. Cells are 0.05°. */
+const ISLAND_MASK: LandCoverMask = {
+  region: 'punjab',
+  features: {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: { landCover: 'cropland' },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]],
+            // x = 0.3 floors into cell 5 but 6 * 0.05 is 0.30000000000000004, and
+            // y = 0.325 is exactly the centre line of row 6.
+            [[0.3, 0.3], [0.34, 0.3], [0.34, 0.325], [0.3, 0.325], [0.3, 0.3]],
+          ],
+        },
+      },
+      {
+        type: 'Feature',
+        properties: { landCover: 'forest' },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[[0.3, 0.3], [0.34, 0.3], [0.34, 0.325], [0.3, 0.325], [0.3, 0.3]]],
+        },
+      },
+    ],
+  },
+};
+
+test('finds a polygon whose edge sits on a float-rounded cell boundary', () => {
+  assert.equal(classifyHotspot(hotspotAt(0.31, 0.31), ISLAND_MASK).landCover, 'forest');
+  assert.equal(classifyHotspot(hotspotAt(0.345, 0.31), ISLAND_MASK).landCover, 'cropland');
+  assert.equal(classifyHotspot(hotspotAt(0.29, 0.31), ISLAND_MASK).landCover, 'cropland');
+});
+
+test('resolves points just above and below an edge lying exactly on a cell centre line', () => {
+  assert.equal(classifyHotspot(hotspotAt(0.31, 0.324), ISLAND_MASK).landCover, 'forest');
+  assert.equal(classifyHotspot(hotspotAt(0.31, 0.326), ISLAND_MASK).landCover, 'cropland');
+  assert.equal(classifyHotspot(hotspotAt(0.31, 0.349), ISLAND_MASK).landCover, 'cropland');
+});
+
+test('resolves a sliver overlap between two polygons to the earlier feature, without corrupting the row', () => {
+  const overlapMask: LandCoverMask = {
+    region: 'punjab',
+    features: {
+      type: 'FeatureCollection',
+      features: [
+        { type: 'Feature', properties: { landCover: 'cropland' },
+          geometry: { type: 'Polygon', coordinates: [[[0, 0], [0.52, 0], [0.52, 1], [0, 1], [0, 0]]] } },
+        { type: 'Feature', properties: { landCover: 'forest' },
+          geometry: { type: 'Polygon', coordinates: [[[0.5, 0], [1, 0], [1, 1], [0.5, 1], [0.5, 0]]] } },
+      ],
+    },
+  };
+  assert.equal(classifyHotspot(hotspotAt(0.51, 0.5), overlapMask).landCover, 'cropland');
+  assert.equal(classifyHotspot(hotspotAt(0.49, 0.5), overlapMask).landCover, 'cropland');
+  // East of the overlap: still inside forest even though the sweep left cropland there.
+  assert.equal(classifyHotspot(hotspotAt(0.53, 0.5), overlapMask).landCover, 'forest');
+  assert.equal(classifyHotspot(hotspotAt(0.9, 0.5), overlapMask).landCover, 'forest');
+});
+
+test('does not mutate the caller\'s mask', () => {
+  const before = JSON.stringify(ISLAND_MASK);
+  classifyHotspot(hotspotAt(0.31, 0.31), ISLAND_MASK);
+  assert.equal(JSON.stringify(ISLAND_MASK), before);
+  assert.deepEqual(Object.keys((ISLAND_MASK.features as any).features[0].geometry.coordinates[0]), ['0', '1', '2', '3', '4']);
+});
+
+// --- Unknown inputs must not tilt an ambiguous fire toward crop-burning ---
+
+test('an unparseable acquiredAt is an unknown season, not stubble season', () => {
+  // Would match the Punjab stubble signature if the date were read as October.
+  const result = classifyHotspot(hotspotAt(74.5, 30.0, { acquiredAt: 'not-a-date', frp: 25 }), MOCK_MASK);
+  assert.equal(result.landCover, 'other');
+  assert.equal(result.kind, 'likely-wildfire');
+});
+
+test('an unknown FRP does not match the moderate-FRP crop-burning signature on other land', () => {
+  const result = classifyHotspot(hotspotAt(74.5, 30.0, { frp: Number.NaN }), MOCK_MASK);
+  assert.equal(result.landCover, 'other');
+  assert.equal(result.kind, 'likely-wildfire');
+});
+
+test('a Telangana scrub fire in peak stubble season with moderate FRP is still likely wildfire', () => {
+  const mask = loadMask('telangana');
+  // Find a real 'other' point in Telangana rather than assuming one.
+  const point = seededPoints(REGION_BBOX.telangana, 2000).find(([lon, lat]) => naiveLandCover(lon, lat, mask) === 'other');
+  assert.ok(point, 'no other-land point found in Telangana sample');
+  const result = classifyHotspot(hotspotAt(point[0], point[1], { acquiredAt: '2026-11-05T10:00:00Z', frp: 25 }), mask);
+  assert.equal(result.landCover, 'other');
+  assert.equal(result.kind, 'likely-wildfire');
 });

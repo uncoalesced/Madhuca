@@ -4,6 +4,17 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-28 — Turnstile 110200 identified (#27); latest main deployed
+
+- The error code surfaced by #25 read **110200** in the failing browser. That is "domain not
+  authorized" for site key `0x4AAAAAAFHTThIHtC1omBtV`. The fix is Hostname Management in the
+  Turnstile dashboard, not code. **Not yet confirmed fixed**: #27 stays open until the failing
+  browser loads the checkbox.
+- Deployed main at f11850b (#25 plus Jammy's #26 float64 index), version
+  72624499-80ec-4339-ae6c-6af166f9adcd. `npm test --workspaces --if-present`:
+  tests 68/17/36, fail 0. Live: `delhi.bin` 200 131387B, `telangana.bin` 200 19211761B,
+  `/api/radar` without a session 403 (expected).
+
 ## 2026-09-28 — Human check: error code surfaced, brand colours, own typeface
 
 - `HumanCheck.ts` `error-callback` now takes Turnstile's error code, `console.error`s it and

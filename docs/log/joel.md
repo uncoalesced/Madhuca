@@ -20,10 +20,14 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
   longer the wildfire red. Contrast (WCAG formula, node): plum on cream 10.97:1, cream on
   plum-deep 13.28:1. Plum on brand green is 3.87:1 (fails AA), so the retry button is cream
   with a green border.
-- Type: Atkinson Hyperlegible Next (variable, 400..700) via a Google Fonts link in
-  `frontend/index.html`, human-check block only. Not self-hosted: no font file was downloaded,
-  so the Vite/Workers asset pipeline is unchanged. Local check: computed font-family is Atkinson
-  and `document.fonts.check` returned true.
+- Type: Atkinson Hyperlegible Next (variable, 400..700), human-check block only. Self-hosted:
+  latin-subset woff2 (33 KB, from fonts.gstatic.com v7) in `frontend/public/fonts/` with
+  `OFL.txt`; `@font-face` in `index.css`, preload in `index.html`. Vite copies it to
+  `frontend/dist/fonts/`; `wrangler deploy` listed `+ /fonts/atkinson-hyperlegible-next-latin.woff2`.
+- Deployed, version f6562906-c166-4524-b434-1413e54b0328. On madhuca.uncoalesced.com: banner
+  class `human-check-loading`, the font was fetched from `/fonts/...woff2` on the same origin,
+  `document.fonts.check` returned true, and the Turnstile checkbox rendered (widget 71px tall).
+  I did not click it. The failing browser's error code is still not observed.
 - `frontend/test/HumanCheck.test.ts` asserted the old `banner-error` class; now `human-check-error`.
 
 ```

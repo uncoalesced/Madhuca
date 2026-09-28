@@ -515,9 +515,19 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* Self-hosted from frontend/public/fonts (Vite copies it to dist, Workers assets serve it).
+   Latin subset, variable weight. SIL Open Font License 1.1, see fonts/OFL.txt. */
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/atkinson-hyperlegible-next-latin.woff2') format('woff2');
+}
+
 /* Turnstile human check: the widget sits under the message when Cloudflare shows it.
    Brand colours, not the hotspot-severity reds: a routine "are you human" step must not
-   read as a wildfire alert. Atkinson Hyperlegible Next (loaded in index.html) was drawn
+   read as a wildfire alert. Atkinson Hyperlegible Next (self-hosted, above) was drawn
    for low-vision legibility, which suits a safety prompt read on a phone outdoors. */
 .human-check {
   flex-wrap: wrap;

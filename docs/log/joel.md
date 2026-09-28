@@ -4,6 +4,39 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-28 — Telangana / AP land-cover mask, prebuilt index, CPU, flaky timing test
+
+- `landcover.yml` was failing with exit 126: `7fc08bf` had dropped the executable bit on
+  `pipeline/landcover.sh` and `pipeline/test-tiles.sh`. Restored with
+  `git update-index --chmod=+x`. Run 36455990422 then published `telangana.json` for the
+  new bbox (39645 features, 11.6 MB; was 15847).
+- Rebuilt the Worker index: `npm run build:index -w worker` -> `telangana.bin` 9.76 MB.
+- `logic/test/classify.test.ts` 10ms-budget test timed a single loop and failed about 1 run
+  in 10 (one run measured 87ms against a usual ~1ms). It now takes the best of 5 loops.
+  0 failures in 15 consecutive `npm test -w logic` runs.
+
+CPU (`node worker/bench/cpu-budget.ts`, Node on the dev machine, a proxy for Workers):
+
+```
+region     json_MB  json_cold_ms  bin_MB  bin_cold_ms  warm_100_ms
+punjab        1.38          20.6    1.16         0.27         0.20
+bihar         6.05          63.3    4.44         0.90         0.17
+delhi         0.10           0.7    0.07         0.04         0.11
+telangana    12.13         148.3    9.76         2.02         0.12
+```
+
+Telangana / AP stays inside 10ms from the .bin, cold and warm.
+
+Spot check against the new mask (plain ray cast vs `classifyHotspot`): Godavari delta
+16.75N 81.85E forest in both, Nallamala 15.9N 78.85E forest in both, Warangal farmland
+17.9N 79.6E cropland in both. On a 0.1 deg grid offset off raster pixel edges, the index
+and a plain ray cast agree on 5991 of 5994 points; the 3 disagreements (index says
+land, ray cast says other) also exist with the previous masks, so they predate this
+change. Points exactly on pixel edges (round coordinates like 16.3N 80.9E) can go either
+way, which is fine for a point on a boundary. Not investigated further.
+
+Re-run: `npm test --workspaces --if-present`, `node worker/bench/cpu-budget.ts`.
+
 ## 2026-09-28 — Telangana / AP region, detail panel layout, slim footer, brand palette
 
 - Merged Andhra Pradesh into the Telangana region. Key stays `telangana` (no change to

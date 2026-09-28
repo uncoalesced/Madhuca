@@ -1,0 +1,5 @@
+For the main text such as the "Madhuca" and the boxes surrounding the states etc use: 4DAA57
+For the non-map and text fields use: 453643
+For the "6 Active Fire Hotspots in Telangana (5 Stubble Burning, 1 Wildfire)" text make sure the text colour is: BD897E
+For the field surrounding the "6 Active Fire Hotspots in Telangana (5 Stubble Burning, 1 Wildfire)" make sure it is F8FFE5
+If you have question on what to use where ask.

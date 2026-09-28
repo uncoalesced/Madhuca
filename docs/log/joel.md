@@ -4,6 +4,75 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-28 — Rate limiting on `/api/radar` (per `madhuca-cloudflare-handoff.md` option 1)
+
+**Built.** Workers Rate Limiting binding, per-IP, 20 requests/minute on `/api/radar`:
+- `worker/wrangler.jsonc`: `"ratelimits"` binding `RADAR_LIMITER`, `simple: { limit: 20, period: 60 }`
+  (`period` only accepts 10 or 60 — confirmed against the current Cloudflare Workers docs).
+- `worker/src/index.ts`: `env.RADAR_LIMITER.limit({ key: cf-connecting-ip })` runs first, before the
+  FIRMS-key check and before the mask load — so a limited request never touches FIRMS, Open-Meteo,
+  or the mask asset. A limited request is a 429 JSON body, `retry-after: 60`, `cache-control:
+  no-store`, and the same "this is not an all-clear" wording the missing-key 500 uses, so the
+  frontend's existing error-banner path (`fetchRadar` in `App.ts`) renders it correctly with no
+  frontend change needed.
+- `Env.RADAR_LIMITER` added to the interface; a local minimal `RateLimiter` type covers it — no new
+  dependency.
+- Did **not** add the edge cache (option 2) or the zone WAF rule (option 3) from the handoff — the
+  binding alone was the "required for this session" item; the cache changes on-demand semantics and
+  the handoff says that needs a decision with the team first (see MASTER decision log below), and the
+  WAF rule needs the custom domain live on Cloudflare first, which hasn't happened yet.
+
+**How it was verified — read this carveout carefully.** My session's connection to this Windows
+machine (`joel-loq`) currently cannot run shell commands on it — Claude's own workspace-mount bug
+from the September 8 Windows update, not anything in this repo. So I could not run
+`npm run typecheck && npm run build && npm test --workspaces --if-present` in the real checkout the
+way `AGENTS.md` asks. What I actually did: copied `worker/`, `logic/src/`, and the real published
+`frontend/public/landcover/*.json` masks into an isolated scratch copy in my own environment,
+`npm install`ed there, and ran the real commands against that copy:
+
+```
+npx tsc --noEmit   (worker workspace)     -> clean, 0 errors
+npx tsc --noEmit   (logic workspace)      -> clean, 0 errors
+node --experimental-strip-types --test test/*.test.ts   (worker, from worker/)
+```
+
+Node in my environment is 22.22.2, not this repo's Node 24, so `--experimental-strip-types` had to
+be passed explicitly — worth rerunning under the repo's real Node 24 (`npm test --workspace worker`)
+before the PR, since that's what CI actually runs. Output, all 6 passing, the new one is #5:
+
+```
+TAP version 13
+ok 1 - classifies a known Punjab cropland point against the mask read from static assets
+ok 2 - a missing FIRMS key is a 500 error that says it is not an all-clear, and calls nothing
+ok 3 - a FIRMS failure is a 502, and the key does not appear in the response
+ok 4 - an unknown region is a 400 and other paths are 404
+ok 5 - a rate-limited request is a 429 saying it is not an all-clear, and FIRMS/wind are never called
+ok 6 - a missing mask is a 500, not a scan where every fire silently reads as other
+1..6
+# tests 6
+# pass 6
+# fail 0
+```
+
+Also ran the emoji scan by hand (`worker/src/index.ts`, `worker/test/index.test.ts`,
+`worker/wrangler.jsonc` against the CI step's `Extended_Pictographic` pattern) — clean.
+
+**Not covered — real, not hedging.**
+- Not run against `frontend/`, so `npm run build` (the vite build) has not been checked with this
+  change — it should be unaffected (`worker/` and `frontend/` don't share code), but I have not
+  proven it.
+- Not run under `wrangler dev` — the `ratelimits` binding in `wrangler.jsonc` has never actually been
+  loaded by `wrangler`, only exercised through the hand-written `RateLimiter` stub in the test. First
+  real check of the binding itself is `wrangler dev` + hammering `/api/radar` past 20/min.
+  429 as CPU, or against Cloudflare's own limiter (rather than the local stub), is unmeasured.
+- PR #9 (SPA + Worker routing) is still open, per `madhuca-cloudflare-handoff.md` — not merged, so
+  this branch is off the current `main`, not off the SPA-serving config. Needs rebasing onto `main`
+  once #9 lands.
+- No deploy yet at all: `wrangler login`, `wrangler deploy`, `wrangler secret put FIRMS_MAP_KEY`, and
+  the `madhuca.uncoalesced.com` custom-domain route are all still to do (handoff steps 2-6).
+
+---
+
 ## 2026-09-28 — Frontend on the Worker, leftovers, TTS checked live
 
 **Built.**

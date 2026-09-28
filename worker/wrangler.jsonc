@@ -14,5 +14,16 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
-  }
+  },
+  // Per-IP rate limit on /api/radar. A real user makes about one request per region
+  // switch, so 20/min per IP is generous headroom without letting a script exhaust the
+  // FIRMS MAP_KEY (5000 transactions/10min) or the free tier's 100k requests/day.
+  // "period" is seconds; the binding only accepts 10 or 60.
+  "ratelimits": [
+    {
+      "name": "RADAR_LIMITER",
+      "namespace_id": "1",
+      "simple": { "limit": 20, "period": 60 }
+    }
+  ]
 }

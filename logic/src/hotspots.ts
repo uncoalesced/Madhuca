@@ -13,7 +13,7 @@ export const REGION_BBOX: Record<Region, BBox> = {
   punjab: [73.8, 29.5, 76.95, 32.55],
   bihar: [83.3, 24.2, 88.3, 27.55],
   delhi: [76.8, 28.4, 77.4, 28.9],
-  telangana: [77.2, 15.8, 81.85, 19.95],
+  telangana: [76.7, 12.6, 84.8, 19.95],
 };
 
 const FIRMS_AREA_CSV = 'https://firms.modaps.eosdis.nasa.gov/api/area/csv';

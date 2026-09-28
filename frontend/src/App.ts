@@ -255,13 +255,14 @@ export function App() {
       React.createElement(
         'p',
         { className: 'footer-attribution' },
-        '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data'
+        '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data',
+        React.createElement(
+          'span',
+          { className: 'footer-disclaimer' },
+          ' · Smoke dispersion modeled using a simplified Gaussian-puff approximation (not HYSPLIT).'
+        )
       ),
-      React.createElement(
-        'p',
-        { className: 'footer-disclaimer' },
-        'Smoke dispersion modeled using a simplified Gaussian-puff approximation (not HYSPLIT).'
-      )
+      React.createElement('p', { className: 'footer-credit' }, '© Engineered by uncoalesced')
     )
   );
 }

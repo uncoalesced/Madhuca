@@ -5,7 +5,7 @@ Guidance for coding agents working in this repository.
 ## What this is
 
 Madhuca — an on-demand fire & smoke radar for four Indian regions (Punjab, Bihar,
-Delhi, Telangana). Opening the site is what triggers the whole pipeline: fetch
+Delhi, Telangana / Andhra Pradesh). Opening the site is what triggers the whole pipeline: fetch
 FIRMS hotspots → fetch wind → compute dispersion → classify → render. Nothing polls
 in the background, and there is no server-side scheduler. Hackathon build with a
 hard deadline of 30 Sept 2026 — scope discipline matters more than extensibility.

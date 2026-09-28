@@ -4,6 +4,42 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-28 — Telangana / AP region, detail panel layout, slim footer, brand palette
+
+- Merged Andhra Pradesh into the Telangana region. Key stays `telangana` (no change to
+  `logic/src/types.ts`); bbox is now `[76.7, 12.6, 84.8, 19.95]` in `logic/src/hotspots.ts`,
+  `pipeline/landcover.sh` and `pipeline/india-border.mjs`; `logic/src/india-border.ts`
+  regenerated from Natural Earth. Tab label `Telangana / AP`.
+- Detail panel: desktop panel now spans `top:1rem; bottom:1rem` of the map container, so it
+  no longer runs under the footer at 67/75/100% zoom, and sits `right:56px` so it no longer
+  covers the zoom/compass control. Mobile sheet capped at 60% of the map container and the
+  container clips, so the sheet no longer slides under the status banner and hides the
+  Listen button.
+- Footer on one slim row, ESA WorldCover attribution and not-HYSPLIT wording both kept
+  verbatim; `© Engineered by uncoalesced` bottom right.
+- Colours from `assets/palette/palette_rules.txt`: header/footer #453643, brand title and
+  active region tab #4DAA57, status banner text #BD897E on #F8FFE5.
+
+Checks:
+
+```
+npm test --workspaces --if-present   # logic 67/67, frontend 17/17, worker 36/36
+bash pipeline/test-tiles.sh           # telangana -> 12 tiles N12..N18 x E075..E084
+npm run build
+```
+
+Passing looks like `fail 0` for all three workspaces and `all tile checks passed`.
+One full test run during this work reported 1 failure in the logic workspace that did not
+reproduce in four reruns; likely a timing-sensitive test under load. Not investigated.
+
+Browser check (`npm run dev`, `/?demo`): desktop panel bottom and scroll reach the
+Coordinates line above the footer, zoom/compass clear; 375x812 mobile shows badge,
+language row and Listen button below the banner.
+
+Not done: the land-cover mask for the wider box. `landcover.yml` must be run with
+`regions=telangana publish=true`; until then AP fires outside the old box classify as
+`other` (defaults to wildfire). CPU for the bigger mask not yet re-measured.
+
 ## 2026-09-28 — Production basemap blank, and a radar spinner that could hang forever (#12)
 
 **Root cause, basemap.** Not Brave: reproducible in any browser against the built site.

@@ -114,6 +114,9 @@ test('insideIndia separates towns on either side of the border', () => {
   assert.equal(insideIndia('bihar', 85.14, 25.59), true, 'Patna');
   assert.equal(insideIndia('delhi', 77.21, 28.61), true, 'New Delhi');
   assert.equal(insideIndia('telangana', 78.49, 17.39), true, 'Hyderabad');
+  assert.equal(insideIndia('telangana', 83.3, 17.7), true, 'Visakhapatnam, AP');
+  assert.equal(insideIndia('telangana', 78.8, 15.9), true, 'Nallamala forest, AP');
+  assert.equal(insideIndia('telangana', 84.5, 13.0), false, 'Bay of Bengal');
 });
 
 test('fetchHotspots drops detections outside India', async () => {

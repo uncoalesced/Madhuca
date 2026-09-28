@@ -11,7 +11,7 @@ const POINTS: Record<Region, ReadonlyArray<readonly [number, number, number]>> =
   punjab: [[30.9, 75.7, 45], [30.35, 76.3, 12], [31.55, 74.95, 160], [32.35, 75.75, 70]],
   bihar: [[25.8, 85.4, 30], [26.3, 86.1, 18], [27.3, 84.1, 95]],
   delhi: [[28.75, 77.05, 22], [28.55, 77.2, 9]],
-  telangana: [[18.1, 79.4, 35], [16.2, 78.7, 120], [18.9, 79.95, 60]],
+  telangana: [[18.1, 79.4, 35], [16.2, 78.7, 120], [18.9, 79.95, 60], [15.9, 78.9, 45]],
 };
 
 export function demoHotspots(region: Region): Hotspot[] {

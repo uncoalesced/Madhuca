@@ -15,7 +15,7 @@ const REGION_BBOX = {
   punjab: [73.8, 29.5, 76.95, 32.55],
   bihar: [83.3, 24.2, 88.3, 27.55],
   delhi: [76.8, 28.4, 77.4, 28.9],
-  telangana: [77.2, 15.8, 81.85, 19.95],
+  telangana: [76.7, 12.6, 84.8, 19.95],
 };
 const PAD = 0.2; // degrees; keeps clipped edges well outside anything FIRMS returns
 const TOLERANCE = 0.001; // degrees, about 100 m; 0.005 misplaced a real fire 500 m from the border

@@ -5,116 +5,55 @@ import {
   type Hotspot,
   type LandCoverMask,
   type Plume,
+  type RadarResult,
   type Region,
   classifyHotspot,
   computeDispersion,
-  fetchHotspots,
-  fetchWind,
 } from '@madhuca/logic';
 import { MapView } from './components/MapView.ts';
 import { RegionSelector, REGION_LABELS } from './components/RegionSelector.ts';
 import { HotspotDetailPanel } from './components/HotspotDetailPanel.ts';
 import { demoHotspots } from './demoHotspots.ts';
 
-export interface PipelineResult {
-  hotspots: Hotspot[];
-  plumes: Record<string, Plume>;
-  classifications: Record<string, Classification>;
+export interface PipelineResult extends RadarResult {
   error?: string;
 }
 
-/** Loads the pre-computed offline landcover mask for a given region. */
-export async function loadLandCoverMask(region: Region): Promise<LandCoverMask | null> {
+/**
+ * Asks the Worker (worker/src/index.ts) to run the on-demand loop for one region.
+ * The FIRMS key lives only in the Worker, so the browser never sees it. Any
+ * non-OK answer comes back as an error, never as an empty all-clear.
+ */
+export async function fetchRadar(region: Region, fetchImpl: typeof fetch = fetch): Promise<PipelineResult> {
+  const empty = { hotspots: [], plumes: {}, classifications: {} };
+  let res: Response;
   try {
-    const url = `/landcover/${region}.json`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return (await res.json()) as LandCoverMask;
+    res = await fetchImpl(`/api/radar?region=${region}`);
   } catch {
-    return null;
+    return { ...empty, error: 'Could not reach the radar service. This is not an all-clear.' };
   }
+  const body = (await res.json().catch(() => null)) as (RadarResult & { error?: string }) | null;
+  if (!res.ok || !body || !Array.isArray(body.hotspots)) {
+    return { ...empty, error: body?.error ?? `Radar service responded ${res.status}. This is not an all-clear.` };
+  }
+  return { hotspots: body.hotspots, plumes: body.plumes, classifications: body.classifications };
 }
 
-/**
- * Runs the live on-demand radar pipeline:
- * Hotspots -> Wind -> Dispersion Plumes -> LandCover Classification.
- */
-export async function runRadarPipeline(
-  region: Region,
-  firmsMapKey?: string,
-  options?: {
-    customMask?: LandCoverMask;
-    mockHotspots?: Hotspot[];
-    onProgress?: (step: string) => void;
-  }
-): Promise<PipelineResult> {
-  options?.onProgress?.(`Loading ${region} land-cover satellite masks...`);
-
-  // 1. Fetch land-cover mask
-  const mask =
-    options?.customMask ??
-    (await loadLandCoverMask(region)) ?? {
-      region,
-      features: [],
-    };
-
-  // 2. Fetch active hotspots
-  options?.onProgress?.(`Querying active thermal hotspots for ${region}...`);
-  let hotspots: Hotspot[] = [];
-
-  if (options?.mockHotspots) {
-    hotspots = options.mockHotspots;
-  } else if (firmsMapKey) {
-    try {
-      hotspots = await fetchHotspots(region, firmsMapKey);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to fetch FIRMS hotspots';
-      return { hotspots: [], plumes: {}, classifications: {}, error: msg };
-    }
-  } else {
-    // No key means nothing was checked. That is an error, never an all-clear.
-    return {
-      hotspots: [],
-      plumes: {},
-      classifications: {},
-      error: 'FIRMS key not configured, so no fire data was fetched. This is not an all-clear.',
-    };
-  }
-
-  if (hotspots.length === 0) {
-    return {
-      hotspots: [],
-      plumes: {},
-      classifications: {},
-    };
-  }
-
-  // 3. Compute wind, Gaussian-puff dispersion, and classification for each hotspot
-  options?.onProgress?.(`Computing smoke dispersion vectors and classification (${hotspots.length} fires)...`);
+/** Dev-only `?demo`: fake hotspots through the real dispersion (calm wind) and classifier. */
+export async function demoRadar(region: Region, mask?: LandCoverMask): Promise<PipelineResult> {
+  const landCover: LandCoverMask =
+    mask ??
+    (await fetch(`/landcover/${region}.json`)
+      .then((r) => (r.ok ? (r.json() as Promise<LandCoverMask>) : null))
+      .catch(() => null)) ?? { region, features: [] };
+  const hotspots: Hotspot[] = demoHotspots(region);
   const plumes: Record<string, Plume> = {};
   const classifications: Record<string, Classification> = {};
-
-  // One wind call per 0.25 degree cell, all in parallel. Nearby fires share a cell,
-  // and a failed call degrades to calm-wind dispersion instead of failing the scan.
-  const cellKey = (hs: Hotspot) => `${Math.round(hs.lat * 4) / 4},${Math.round(hs.lon * 4) / 4}`;
-  const cells = new Map<string, Hotspot>();
-  for (const hs of hotspots) if (!cells.has(cellKey(hs))) cells.set(cellKey(hs), hs);
-  const winds = new Map(
-    await Promise.all(
-      [...cells].map(async ([key, hs]) => [key, await fetchWind(hs.lat, hs.lon).catch(() => null)] as const)
-    )
-  );
-
   for (const hs of hotspots) {
-    plumes[hs.id] = computeDispersion(hs, winds.get(cellKey(hs)) ?? null);
-    classifications[hs.id] = classifyHotspot(hs, mask);
+    plumes[hs.id] = computeDispersion(hs, null);
+    classifications[hs.id] = classifyHotspot(hs, landCover);
   }
-
-  return {
-    hotspots,
-    plumes,
-    classifications,
-  };
+  return { hotspots, plumes, classifications };
 }
 
 // `?demo` in `npm run dev` swaps FIRMS for fake hotspots (frontend/src/demoHotspots.ts).
@@ -142,13 +81,8 @@ export function App() {
     setSelected(null);
 
     try {
-      // Dev only: Vite inlines VITE_ variables into the bundle, so a production build
-      // must never read the key here. Production goes through the Worker (docs/ROADMAP.md).
-      const devKey = import.meta.env?.DEV ? import.meta.env.VITE_FIRMS_MAP_KEY : undefined;
-      const result = await runRadarPipeline(targetRegion, devKey, {
-        mockHotspots: IS_DEMO ? demoHotspots(targetRegion) : undefined,
-        onProgress: setProgressMsg,
-      });
+      setProgressMsg(`Scanning ${targetRegion} for active fires...`);
+      const result = IS_DEMO ? await demoRadar(targetRegion) : await fetchRadar(targetRegion);
 
       if (result.error) {
         setErrorMessage(result.error);

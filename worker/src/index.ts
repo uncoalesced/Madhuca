@@ -1,10 +1,17 @@
 import { REGIONS, runRadar, type LandCoverMask, type Region } from '@madhuca/logic';
 
+/** The Workers Rate Limiting binding's runtime shape (no @cloudflare/workers-types dependency). */
+interface RateLimiter {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 /** Bindings from wrangler.jsonc. FIRMS_MAP_KEY is a Worker secret, never in the repo or the client bundle. */
 export interface Env {
   FIRMS_MAP_KEY?: string;
   /** Static assets: the land-cover masks under /landcover/<region>.json. */
   ASSETS: { fetch(input: Request | string): Promise<Response> };
+  /** Per-IP rate limit on /api/radar (wrangler.jsonc "ratelimits"). 20/min, checked before any FIRMS work. */
+  RADAR_LIMITER: RateLimiter;
 }
 
 // Parsed masks live for the isolate's lifetime, so only the first request per region
@@ -29,6 +36,14 @@ function error(status: number, message: string): Response {
   return Response.json({ error: message }, { status, headers: { 'cache-control': 'no-store' } });
 }
 
+/** 429s never say "no fires" — they say why nothing was checked, same as the missing-key 500 does. */
+function rateLimited(): Response {
+  return Response.json(
+    { error: 'Too many requests, try again in a minute. This is not an all-clear.' },
+    { status: 429, headers: { 'cache-control': 'no-store', 'retry-after': '60' } },
+  );
+}
+
 function isRegion(value: string | null): value is Region {
   return (REGIONS as readonly (string | null)[]).includes(value);
 }
@@ -41,6 +56,14 @@ export default {
 
     const region = url.searchParams.get('region');
     if (!isRegion(region)) return error(400, `region must be one of: ${REGIONS.join(', ')}`);
+
+    // Before any FIRMS or wind work: one shared MAP_KEY, one region loop's worth of
+    // Open-Meteo calls per request. A script hammering this endpoint could exhaust
+    // either. cf-connecting-ip is Cloudflare's real-client-IP header; 'anon' only
+    // applies where that header is genuinely absent (e.g. local `wrangler dev`).
+    const clientKey = request.headers.get('cf-connecting-ip') ?? 'anon';
+    const { success } = await env.RADAR_LIMITER.limit({ key: clientKey });
+    if (!success) return rateLimited();
 
     // No key means nothing was checked. That is an error, never an all-clear.
     if (!env.FIRMS_MAP_KEY) {

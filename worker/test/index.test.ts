@@ -29,6 +29,9 @@ function envWith(key: string | undefined, assetRequests: string[] = []): Env {
         }
       },
     },
+    // Every other test in this file is exercising something other than the rate limit,
+    // so the default stub always allows. Only the rate-limit test below overrides it.
+    RADAR_LIMITER: { limit: async () => ({ success: true }) },
   };
 }
 
@@ -95,6 +98,22 @@ test('an unknown region is a 400 and other paths are 404', async () => {
   assert.equal((await get('/api/radar?region=kerala', envWith('k'))).status, 400);
   assert.equal((await get('/api/radar', envWith('k'))).status, 400);
   assert.equal((await get('/api/other', envWith('k'))).status, 404);
+});
+
+test('a rate-limited request is a 429 saying it is not an all-clear, and FIRMS/wind are never called', async () => {
+  const assetRequests: string[] = [];
+  const env = envWith('test-key', assetRequests);
+  env.RADAR_LIMITER = { limit: async () => ({ success: false }) };
+  const { value: res, seen } = await withStubbedFetch(
+    () => new Response('unexpected'),
+    () => get('/api/radar?region=punjab', env),
+  );
+  assert.equal(res.status, 429);
+  assert.match(((await res.json()) as { error: string }).error, /not an all-clear/);
+  assert.equal(res.headers.get('retry-after'), '60');
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  assert.equal(seen.length, 0);
+  assert.deepEqual(assetRequests, []);
 });
 
 test('a missing mask is a 500, not a scan where every fire silently reads as other', async () => {

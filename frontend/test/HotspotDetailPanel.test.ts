@@ -110,3 +110,37 @@ test('HotspotDetailPanel renders full details and audio section when active', ()
   assert.ok(html.includes('Close detail panel'), 'Expected close button with aria-label');
   assert.ok(html.includes('ਪੰਜਾਬੀ'), 'Expected Punjabi language pill for Punjab region');
 });
+
+test('Indic alert text carries the compass word in its own language', () => {
+  const east: Plume = { bearingDeg: 90, distanceKm: 8.5, spreadDeg: 20 };
+  const hi = generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, east, 'hi');
+  const pa = generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, east, 'pa');
+  const te = generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, east, 'te');
+  assert.ok(hi.includes('पूर्व'), hi);
+  assert.ok(pa.includes('ਪੂਰਬ'), pa);
+  assert.ok(te.includes('తూర్పు'), te);
+  for (const line of [hi, pa, te]) assert.doesNotMatch(line, /East|North|South|West|downwind|vicinity/);
+  const noPlume = generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, undefined, 'hi');
+  assert.doesNotMatch(noPlume, /[A-Za-z]{3,}/);
+  assert.match(generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, east, 'en'), /East/);
+});
+
+test('HotspotDetailPanel closes and reopens: null -> empty, hotspot -> dialog, null -> empty', () => {
+  const render = (hotspot: Hotspot | null) =>
+    renderToStaticMarkup(
+      React.createElement(HotspotDetailPanel, {
+        hotspot,
+        classification: MOCK_CROP_CLASSIFICATION,
+        plume: MOCK_PLUME,
+        region: 'punjab',
+        onClose: () => {},
+      }),
+    );
+  const open = render(MOCK_HOTSPOT);
+  assert.match(open, /role="dialog"/);
+  assert.match(open, /Close detail panel/);
+  const closed = render(null);
+  assert.doesNotMatch(closed, /role="dialog"/);
+  assert.match(closed, /hotspot-panel-empty/);
+  assert.match(render(MOCK_HOTSPOT), /role="dialog"/);
+});

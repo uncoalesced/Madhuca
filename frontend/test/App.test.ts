@@ -2,11 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import {
-  App,
-  loadLandCoverMask,
-  runRadarPipeline,
-} from '../src/App.ts';
+import { App, demoRadar, fetchRadar } from '../src/App.ts';
 import type { Hotspot, LandCoverMask } from '@madhuca/logic';
 
 const MOCK_MASK: LandCoverMask = {
@@ -52,39 +48,57 @@ const MOCK_HOTSPOTS: Hotspot[] = [
   },
 ];
 
-test('loadLandCoverMask handles fetch failures gracefully without throwing', async () => {
-  const result = await loadLandCoverMask('punjab');
-  // In Node test environment where static server isn't running, returns null safely
-  assert.equal(result, null);
-});
+const json = (status: number, body: unknown) =>
+  (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 
-test('runRadarPipeline executes on-demand pipeline with mock hotspots', async () => {
-  const result = await runRadarPipeline('punjab', undefined, {
-    customMask: MOCK_MASK,
-    mockHotspots: MOCK_HOTSPOTS,
-  });
-
-  assert.equal(result.hotspots.length, 2);
-  assert.ok(result.plumes['hs-pb-101'], 'Expected plume for hs-pb-101');
-  assert.ok(result.classifications['hs-pb-101'], 'Expected classification for hs-pb-101');
-
-  // Hotspot 1 is inside cropland during Oct -> likely-crop-burning
-  assert.equal(result.classifications['hs-pb-101']?.kind, 'likely-crop-burning');
-
-  // Hotspot 2 is outside cropland -> other (treated as wildfire by default)
-  assert.equal(result.classifications['hs-pb-102']?.kind, 'likely-wildfire');
-});
-
-test('runRadarPipeline handles zero hotspots as empty state without error', async () => {
-  const result = await runRadarPipeline('bihar', undefined, {
-    customMask: MOCK_MASK,
-    mockHotspots: [],
-  });
-
+test('fetchRadar with no FIRMS key on the Worker is an error, never an empty all-clear', async () => {
+  const result = await fetchRadar(
+    'punjab',
+    json(500, { error: 'FIRMS key not configured, so no fire data was fetched. This is not an all-clear.' }),
+  );
   assert.equal(result.hotspots.length, 0);
-  assert.equal(Object.keys(result.plumes).length, 0);
-  assert.equal(Object.keys(result.classifications).length, 0);
+  assert.match(result.error ?? '', /FIRMS key not configured/);
+});
+
+test('fetchRadar with 3 hotspots returns 3 hotspots, plumes and classifications', async () => {
+  const three = [...MOCK_HOTSPOTS, { ...MOCK_HOTSPOTS[0]!, id: 'hs-pb-103', lat: 30.7 }];
+  const plumes = Object.fromEntries(three.map((h) => [h.id, { bearingDeg: 90, distanceKm: 5, spreadDeg: 20 }]));
+  const classifications = Object.fromEntries(
+    three.map((h) => [h.id, { kind: 'likely-crop-burning', landCover: 'cropland', rationale: 'r' }]),
+  );
+  let asked = '';
+  const fake = (async (url: string) => {
+    asked = url;
+    return new Response(JSON.stringify({ hotspots: three, plumes, classifications }));
+  }) as unknown as typeof fetch;
+  const result = await fetchRadar('punjab', fake);
+  assert.equal(asked, '/api/radar?region=punjab');
   assert.equal(result.error, undefined);
+  assert.equal(result.hotspots.length, 3);
+  assert.equal(Object.keys(result.plumes).length, 3);
+  assert.equal(Object.keys(result.classifications).length, 3);
+});
+
+test('fetchRadar with zero hotspots is a real empty result without error', async () => {
+  const result = await fetchRadar('bihar', json(200, { hotspots: [], plumes: {}, classifications: {} }));
+  assert.equal(result.hotspots.length, 0);
+  assert.equal(result.error, undefined);
+});
+
+test('fetchRadar on a network failure or garbage body is an error', async () => {
+  const down = (async () => { throw new TypeError('fetch failed'); }) as unknown as typeof fetch;
+  assert.match((await fetchRadar('delhi', down)).error ?? '', /not an all-clear/);
+  const html = (async () => new Response('<html>', { status: 200 })) as unknown as typeof fetch;
+  assert.match((await fetchRadar('delhi', html)).error ?? '', /not an all-clear/);
+});
+
+test('demoRadar classifies fake hotspots against the given mask', async () => {
+  const result = await demoRadar('punjab', MOCK_MASK);
+  assert.ok(result.hotspots.length > 0);
+  for (const hs of result.hotspots) {
+    assert.ok(result.plumes[hs.id]);
+    assert.ok(result.classifications[hs.id]);
+  }
 });
 
 test('App renders brand header, region selector, and mandatory ESA attribution footer', () => {

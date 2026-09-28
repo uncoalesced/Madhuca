@@ -2,6 +2,51 @@
 
 Log finished, *tested* work here, newest entry on top. Format: date (IST), what was built, how it was verified (include the test command and what passing looked like).
 
+## 2026-09-29 (IST) — Issue #24 fixed: land-cover index stores float64 edges
+
+**Cause:** my prebuilt index (PR #11) stored polygon edges as float32. That moves a vertex by up to ~1m, which is enough to flip a point lying that close to an edge. A plain ray cast over float32-rounded coordinates agrees with the old index on all three of Joel's points. So this was mine, not a pre-existing mask problem.
+
+**Fix:** the edges are now `Float64Array`, and the index format is now version 2 (edges first, so they are 8-byte aligned). All four `.bin` files are rebuilt. A version-1 file now throws "not a version-2 land-cover index" instead of being misread.
+
+Cost: the files are about twice the size.
+
+| Region | Size | Cold load |
+|---|---|---|
+| Telangana / AP | 19.21 MB | ~3ms |
+| Bihar | 8.78 MB | ~1.4ms |
+| Punjab | 2.27 MB | ~0.5ms |
+| Delhi | 0.13 MB | ~0.05ms |
+
+All are under the 25 MiB per-file asset limit and the 10ms budget. Telangana / AP is the tightest on both counts (19.2 of 26.2 MB, ~3ms).
+
+### Checks
+
+```bash
+npm test --workspaces --if-present
+node worker/bench/cpu-budget.ts
+```
+
+Joel's reproduction (a 0.1 degree grid over `REGION_BBOX.telangana` starting at 76.7207E 12.6203N, comparing the index with a plain even-odd ray cast):
+- before the fix: `points 5994, mismatches 3`
+- after the fix: `points 5994, mismatches 0`
+
+New test in `logic/test/classify-index.test.ts`: "points within a metre of an edge get the exact ray-cast answer (issue #24)". It checks all three points, through both the JSON path and the `.bin` path. Run against the old `classify.ts` it fails (`not ok 1`, at 79.2207,14.0203 from JSON); with the fix it passes.
+
+Suite: logic 68/68, worker 17/17, frontend 35 pass, 0 fail. The frontend's one `not ok` is still the known Node 22 cancellation of Joel's timeout test; CI runs Node 24.
+
+`node worker/bench/cpu-budget.ts` (second of two runs):
+```
+region     json_MB  json_cold_ms  bin_MB  bin_cold_ms  warm_100_ms
+punjab        1.38          49.0    2.27         0.44         0.29
+bihar         6.05         108.7    8.78         1.36         0.44
+delhi         0.10           1.3    0.13         0.05         0.37
+telangana    12.13         314.1   19.21         2.92         0.16
+```
+
+Not covered: Cloudflare's own CPU figure for the larger file; the dashboard after deploy is the real check.
+
+---
+
 ## 2026-09-28 (IST) — Human check on `/api/radar`: Cloudflare Turnstile, once per visit
 
 Requested directly, not in the brief. It touches Joel's frontend, which the PR says.

@@ -47,10 +47,27 @@ test('a decoded index keeps the region, so the other-land-cover rule still sees 
   assert.deepEqual(classifyHotspot(hs, prebuilt), classifyHotspot(hs, empty));
 });
 
-test('rejects a file that is not a complete version-1 index instead of misreading it', () => {
+test('rejects a file that is not a complete current-version index instead of misreading it', () => {
   const good = encodeMaskIndex(JSON.parse(readFileSync(join(LANDCOVER, 'delhi.json'), 'utf8')) as LandCoverMask);
   assert.throws(() => decodeMaskIndex('delhi', good.slice(0, 40)), /truncated/);
   assert.throws(() => decodeMaskIndex('delhi', good.slice(0, good.byteLength - 4)), /expected/);
-  assert.throws(() => decodeMaskIndex('delhi', new TextEncoder().encode('{"region":"delhi","features":[]}      ').buffer as ArrayBuffer), /truncated|version-1/);
-  assert.throws(() => decodeMaskIndex('delhi', new ArrayBuffer(200)), /version-1/);
+  assert.throws(() => decodeMaskIndex('delhi', new TextEncoder().encode('{"region":"delhi","features":[]}      ').buffer as ArrayBuffer), /truncated|version-2/);
+  assert.throws(() => decodeMaskIndex('delhi', new ArrayBuffer(200)), /version-2/);
+});
+
+// Issue #24: version 1 stored edges as float32, which moved vertices by up to ~1m and
+// flipped these three points (each within that distance of an edge) from 'other' to land.
+// A plain even-odd ray cast over the mask's own float64 coordinates says 'other' for all three.
+test('points within a metre of an edge get the exact ray-cast answer (issue #24)', () => {
+  const mask = JSON.parse(readFileSync(join(LANDCOVER, 'telangana.json'), 'utf8')) as LandCoverMask;
+  const prebuilt = decodeMaskIndex('telangana', encodeMaskIndex(mask));
+  for (const [lon, lat] of [
+    [79.2207, 14.0203],
+    [79.2207, 16.1203],
+    [79.9207, 18.9203],
+  ] as const) {
+    const hs = hotspotAt(lat, lon, 5);
+    assert.equal(classifyHotspot(hs, mask).landCover, 'other', `${lon},${lat} from JSON`);
+    assert.equal(classifyHotspot(hs, prebuilt).landCover, 'other', `${lon},${lat} from .bin`);
+  }
 });

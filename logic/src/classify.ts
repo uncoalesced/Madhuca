@@ -24,7 +24,7 @@ interface MaskIndex {
   /** Cell c's edges are edges[cellStart[c] .. cellStart[c + 1]]. */
   cellStart: Uint32Array;
   /** Flat [x1, y1, x2, y2, polygonId, ...] for every edge touching each cell, cell by cell. */
-  edges: Float32Array;
+  edges: Float64Array;
   /**
    * Cell c's centre is inside polygons centreIds[centreStart[c] .. centreStart[c + 1]],
    * ascending. Nearly always zero or one — but the pipeline simplifies each polygon
@@ -80,8 +80,8 @@ function buildIndex(mask: LandCoverMask): MaskIndex {
     for (const part of parts) {
       if (!Array.isArray(part) || !isRing(part[0])) continue;
       for (const pt of part[0]) {
-        const x = Math.fround(pt[0]!);
-        const y = Math.fround(pt[1]!);
+        const x = pt[0]!;
+        const y = pt[1]!;
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -103,12 +103,12 @@ function buildIndex(mask: LandCoverMask): MaskIndex {
   for (let k = 0; k < polygons.length; k++) {
     for (const ring of polygons[k]!) {
       for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        // Rounded to float32, as the index stores them, so the sweep below and every
-        // lookup see exactly the coordinates a prebuilt index (encodeMaskIndex) holds.
-        const x1 = Math.fround(ring[j]![0]!);
-        const y1 = Math.fround(ring[j]![1]!);
-        const x2 = Math.fround(ring[i]![0]!);
-        const y2 = Math.fround(ring[i]![1]!);
+        // Kept as float64, exactly as in the mask. Version 1 stored float32 (up to ~1m
+        // off), which flipped points lying within that distance of an edge (issue #24).
+        const x1 = ring[j]![0]!;
+        const y1 = ring[j]![1]!;
+        const x2 = ring[i]![0]!;
+        const y2 = ring[i]![1]!;
         if (x1 === x2 && y1 === y2) continue;
         const c0 = Math.floor((Math.min(x1, x2) - minX) / CELL_DEG);
         const c1 = Math.floor((Math.max(x1, x2) - minX) / CELL_DEG);
@@ -192,7 +192,7 @@ function pack(
     cellStart[c + 1] = cellStart[c]! + (edges[c]?.length ?? 0);
     centreStart[c + 1] = centreStart[c]! + (centre[c]?.length ?? 0);
   }
-  const flatEdges = new Float32Array(cellStart[cells]!);
+  const flatEdges = new Float64Array(cellStart[cells]!);
   const centreIds = new Uint32Array(centreStart[cells]!);
   for (let c = 0; c < cells; c++) {
     const cell = edges[c];
@@ -285,12 +285,13 @@ function findLandCover(lon: number, lat: number, mask: LandCoverMask): LandCover
   return best === -1 ? 'other' : LAND_COVERS[index.landCovers[best]!]!;
 }
 
-// Prebuilt index file: a Float64 header, then the MaskIndex arrays back to back.
+// Prebuilt index file: a Float64 header, then the MaskIndex arrays back to back, edges
+// first so the Float64Array starts 8-byte aligned.
 // Loading one is a handful of typed-array views over the bytes, with no JSON.parse
 // and no index build: those two cost 60-260ms of CPU per region on a cold Worker,
 // against a 10ms budget (worker/bench/cpu-budget.ts).
 const INDEX_MAGIC = 0x4d445831; // "MDX1"
-const INDEX_VERSION = 1;
+const INDEX_VERSION = 2; // 2: float64 edges (issue #24)
 const HEADER_SLOTS = 10; // magic, version, minX, minY, cols, rows, polygons, edge floats, centre ids, 0
 
 /**
@@ -300,11 +301,11 @@ const HEADER_SLOTS = 10; // magic, version, minX, minY, cols, rows, polygons, ed
 export function encodeMaskIndex(mask: LandCoverMask): ArrayBuffer {
   const index = buildIndex(mask);
   const polygons = index.landCovers.length;
-  const lcBytes = Math.ceil(polygons / 4) * 4;
   const bytes =
     HEADER_SLOTS * 8 +
-    lcBytes +
-    4 * (index.cellStart.length + index.edges.length + index.centreStart.length + index.centreIds.length);
+    index.edges.byteLength +
+    4 * (index.cellStart.length + index.centreStart.length + index.centreIds.length) +
+    polygons;
   const buffer = new ArrayBuffer(bytes);
   new Float64Array(buffer, 0, HEADER_SLOTS).set([
     INDEX_MAGIC,
@@ -319,9 +320,7 @@ export function encodeMaskIndex(mask: LandCoverMask): ArrayBuffer {
     0,
   ]);
   let offset = HEADER_SLOTS * 8;
-  new Uint8Array(buffer, offset, polygons).set(index.landCovers);
-  offset += lcBytes;
-  for (const part of [index.cellStart, index.edges, index.centreStart, index.centreIds]) {
+  for (const part of [index.edges, index.cellStart, index.centreStart, index.centreIds, index.landCovers]) {
     new Uint8Array(buffer, offset, part.byteLength).set(new Uint8Array(part.buffer, part.byteOffset, part.byteLength));
     offset += part.byteLength;
   }
@@ -331,32 +330,31 @@ export function encodeMaskIndex(mask: LandCoverMask): ArrayBuffer {
 /**
  * Load a prebuilt index as a mask for `classifyHotspot`. The returned mask carries
  * no features; its index is already cached against it, so no lookup ever builds one.
- * Throws on a file that is not a version-1 index of the expected length.
+ * Throws on a file that is not a version-2 index of the expected length.
  */
 export function decodeMaskIndex(region: Region, buffer: ArrayBuffer): LandCoverMask {
   if (buffer.byteLength < HEADER_SLOTS * 8) throw new Error('land-cover index is truncated');
   const header = new Float64Array(buffer, 0, HEADER_SLOTS);
   if (header[0] !== INDEX_MAGIC || header[1] !== INDEX_VERSION) {
-    throw new Error('not a version-1 land-cover index');
+    throw new Error(`not a version-${INDEX_VERSION} land-cover index (rebuild: npm run build:index --workspace worker)`);
   }
   const [, , minX, minY, cols, rows, polygons, edgeFloats, centreIds] = header as unknown as number[];
   const cells = cols! * rows!;
-  const lcBytes = Math.ceil(polygons! / 4) * 4;
-  const expected = HEADER_SLOTS * 8 + lcBytes + 4 * (2 * (cells + 1) + edgeFloats! + centreIds!);
+  const expected = HEADER_SLOTS * 8 + 8 * edgeFloats! + 4 * (2 * (cells + 1) + centreIds!) + polygons!;
   if (buffer.byteLength !== expected) {
     throw new Error(`land-cover index is ${buffer.byteLength} bytes, expected ${expected}`);
   }
 
   let offset = HEADER_SLOTS * 8;
-  const landCovers = new Uint8Array(buffer, offset, polygons);
-  offset += lcBytes;
+  const edges = new Float64Array(buffer, offset, edgeFloats);
+  offset += edges.byteLength;
   const cellStart = new Uint32Array(buffer, offset, cells + 1);
   offset += cellStart.byteLength;
-  const edges = new Float32Array(buffer, offset, edgeFloats);
-  offset += edges.byteLength;
   const centreStart = new Uint32Array(buffer, offset, cells + 1);
   offset += centreStart.byteLength;
   const ids = new Uint32Array(buffer, offset, centreIds);
+  offset += ids.byteLength;
+  const landCovers = new Uint8Array(buffer, offset, polygons);
 
   const mask: LandCoverMask = { region, features: [] };
   indexCache.set(mask, {

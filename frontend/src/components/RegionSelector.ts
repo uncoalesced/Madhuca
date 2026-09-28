@@ -11,7 +11,7 @@ export const REGION_LABELS: Record<Region, { name: string; native: string }> = {
   punjab: { name: 'Punjab', native: 'ਪੰਜਾਬ' },
   bihar: { name: 'Bihar', native: 'बिहार' },
   delhi: { name: 'Delhi', native: 'दिल्ली' },
-  telangana: { name: 'Telangana', native: 'తెలంగాణ' },
+  telangana: { name: 'Telangana / AP', native: 'తెలంగాణ / ఏపీ' },
 };
 
 /** Toggle between the four v1 regions. Changing region re-triggers the fetch cycle. */

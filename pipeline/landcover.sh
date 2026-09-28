@@ -47,7 +47,7 @@ bbox_for() {
     punjab)    echo "73.8 29.5 76.95 32.55" ;;
     bihar)     echo "83.3 24.2 88.3 27.55" ;;
     delhi)     echo "76.8 28.4 77.4 28.9" ;;
-    telangana) echo "77.2 15.8 81.85 19.95" ;;
+    telangana) echo "76.7 12.6 84.8 19.95" ;;
     *) echo "unknown region: $1" >&2; return 1 ;;
   esac
 }

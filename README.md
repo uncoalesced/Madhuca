@@ -1,7 +1,7 @@
 # Madhuca
 
 Autonomous stubble & biomass fire early-warning radar for Punjab, Bihar, Delhi and
-Telangana. Open the site and it pulls live NASA FIRMS fire hotspots, pulls live wind,
+Telangana / Andhra Pradesh. Open the site and it pulls live NASA FIRMS fire hotspots, pulls live wind,
 computes a rough smoke-dispersion direction per hotspot, tags each one as likely
 wildfire vs. likely crop/stubble burning, and renders it on a map.
 

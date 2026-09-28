@@ -54,7 +54,8 @@ expect_tiles bihar "N24E081 N24E084 N24E087 N27E081 N27E084 N27E087"
 # the lower bound, this is the one that goes empty.
 expect_tiles delhi "N27E075"
 
-expect_tiles telangana "N15E075 N15E078 N15E081 N18E075 N18E078 N18E081"
+# Telangana + Andhra Pradesh: three latitude bands, four longitude bands.
+expect_tiles telangana "N12E075 N12E078 N12E081 N12E084 N15E075 N15E078 N15E081 N15E084 N18E075 N18E078 N18E081 N18E084"
 
 expect_fail "an unknown region is refused" bash "$LANDCOVER" list-tiles atlantis
 

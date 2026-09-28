@@ -13,8 +13,16 @@
   --color-safe: #15803d;
   --color-safe-bg: #dcfce7;
 
-  --primary-accent: #0f766e;
-  --primary-accent-hover: #115e59;
+  --primary-accent: #4daa57;
+  --primary-accent-hover: #62b86b;
+  --on-accent: #1f181e; /* white on brand green is 2.9:1; this is 6:1 */
+
+  /* Brand palette: assets/palette/palette_rules.txt */
+  --brand-green: #4daa57;
+  --brand-plum: #453643;
+  --brand-plum-deep: #362a34;
+  --brand-rose: #8f5a4f; /* palette BD897E darkened for 4.5:1 on cream */
+  --brand-cream: #f8ffe5;
 
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', Oxygen, Ubuntu, Cantarell, sans-serif;
   color: var(--text-main);
@@ -52,7 +60,7 @@ body {
 
 /* Header & Brand */
 .app-header {
-  background-color: #1e293b;
+  background-color: var(--brand-plum);
   color: #ffffff;
   padding: 0.75rem 1rem;
   display: flex;
@@ -73,12 +81,12 @@ body {
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #38bdf8;
+  color: var(--brand-green);
 }
 
 .brand-subtitle {
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: #d6c9d3;
 }
 
 /* Region Selector */
@@ -90,7 +98,7 @@ body {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 0.35rem;
-  background-color: #0f172a;
+  background-color: var(--brand-plum-deep);
   padding: 0.25rem;
   border-radius: 8px;
 }
@@ -98,7 +106,7 @@ body {
 .region-tab {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: #d6c9d3;
   padding: 0.5rem 0.25rem;
   min-height: 48px;
   border-radius: 6px;
@@ -118,7 +126,7 @@ body {
 }
 
 .region-tab-active {
-  background-color: #0284c7 !important;
+  background-color: var(--brand-green) !important;
   color: #ffffff !important;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
@@ -164,8 +172,8 @@ body {
 }
 
 .banner-ready {
-  background-color: #fefce8;
-  color: #854d0e;
+  background-color: var(--brand-cream);
+  color: var(--brand-rose);
 }
 
 .retry-button {
@@ -192,6 +200,7 @@ body {
   width: 100%;
   height: 100%;
   position: relative;
+  overflow: hidden;
 }
 
 .maplibre-map-root {
@@ -252,7 +261,7 @@ body {
   left: 0;
   right: 0;
   background-color: var(--bg-card);
-  max-height: 80vh;
+  max-height: 60%;
   overflow-y: auto;
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
@@ -266,14 +275,15 @@ body {
 @media (min-width: 768px) {
   .hotspot-panel-active {
     top: 1rem;
-    bottom: auto;
-    right: 1rem;
+    bottom: 1rem;
+    /* Clear the MapLibre zoom/compass column at top-right. */
+    right: 56px;
     left: auto;
     width: 380px;
     border-radius: 12px;
     border: 1px solid var(--border-color);
     border-top: 4px solid var(--primary-accent);
-    max-height: 85vh;
+    max-height: none;
   }
 }
 
@@ -363,14 +373,14 @@ body {
 }
 
 .lang-pill-active {
-  background-color: #0f766e !important;
-  color: #ffffff !important;
-  border-color: #0f766e !important;
+  background-color: var(--primary-accent) !important;
+  color: var(--on-accent) !important;
+  border-color: var(--primary-accent) !important;
 }
 
 .tts-button {
-  background-color: #0f766e;
-  color: #ffffff;
+  background-color: var(--primary-accent);
+  color: var(--on-accent);
   border: none;
   min-height: 48px;
   padding: 0.75rem 1rem;
@@ -385,7 +395,7 @@ body {
 }
 
 .tts-button:hover {
-  background-color: #115e59;
+  background-color: var(--primary-accent-hover);
 }
 
 .tts-button:disabled {
@@ -394,11 +404,12 @@ body {
 }
 
 .tts-state-playing {
-  background-color: #0284c7;
+  background-color: var(--primary-accent-hover);
 }
 
 .tts-state-error {
   background-color: #b91c1c;
+  color: #ffffff;
 }
 
 /* Panel Cards & Advisory */
@@ -461,23 +472,33 @@ body {
 
 /* Footer (Mandatory CC-BY 4.0 Attribution) */
 .app-footer {
-  background-color: #0f172a;
-  color: #94a3b8;
-  padding: 0.85rem 1rem;
-  font-size: 0.75rem;
-  text-align: center;
+  background-color: var(--brand-plum);
+  color: #d6c9d3;
+  padding: 0.3rem 1rem;
+  font-size: 0.65rem;
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  border-top: 1px solid #334155;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.15rem 1rem;
+  border-top: 1px solid var(--brand-plum-deep);
+}
+
+.app-footer p {
+  margin: 0;
 }
 
 .footer-attribution {
   font-weight: 600;
 }
 
+.footer-credit {
+  margin-left: auto !important;
+}
+
 .footer-disclaimer {
-  color: #64748b;
+  color: #b3a3b0;
+  font-weight: 400;
 }
 
 .spinner-icon {

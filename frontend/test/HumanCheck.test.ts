@@ -49,5 +49,5 @@ test('without a site key (as in this non-Vite test run) the check says it is not
   const html = renderToStaticMarkup(React.createElement(HumanCheck, { onVerified: () => {} }));
   assert.match(html, /Human verification is not configured/);
   assert.match(html, /not an all-clear/);
-  assert.match(html, /banner-error/);
+  assert.match(html, /human-check-error/);
 });

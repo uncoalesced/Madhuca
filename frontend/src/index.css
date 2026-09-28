@@ -515,9 +515,39 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* Turnstile human check: the widget sits under the message when Cloudflare shows it. */
+/* Turnstile human check: the widget sits under the message when Cloudflare shows it.
+   Brand colours, not the hotspot-severity reds: a routine "are you human" step must not
+   read as a wildfire alert. Atkinson Hyperlegible Next (loaded in index.html) was drawn
+   for low-vision legibility, which suits a safety prompt read on a phone outdoors. */
 .human-check {
   flex-wrap: wrap;
+  justify-content: space-between;
+  font-family: 'Atkinson Hyperlegible Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+/* Plum on cream is 10.97:1. */
+.human-check-loading {
+  background-color: var(--brand-cream);
+  color: var(--brand-plum);
+  border-left: 4px solid var(--brand-green);
+}
+/* Cream on deep plum is 13.28:1; the rose edge marks it as needing action. */
+.human-check-error {
+  background-color: var(--brand-plum-deep);
+  color: var(--brand-cream);
+  border-left: 4px solid var(--brand-rose);
+}
+/* Plum on cream is 10.97:1 (plum on brand green would be 3.87:1, under AA). */
+.human-check-retry {
+  background-color: var(--brand-cream);
+  color: var(--brand-plum);
+  border: 2px solid var(--brand-green);
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 .turnstile-widget:empty {
   display: none;

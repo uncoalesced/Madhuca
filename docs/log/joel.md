@@ -4,6 +4,35 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-28 — Human check: error code surfaced, brand colours, own typeface
+
+- `HumanCheck.ts` `error-callback` now takes Turnstile's error code, `console.error`s it and
+  shows "The human check failed (code: X)". Before, the code was discarded.
+- Root cause of the red banner: **not yet identified**. On madhuca.uncoalesced.com in the
+  Claude desktop browser the widget rendered a "Verify you are human" checkbox with no error
+  (only console error: the expected pre-verify 403 on /api/radar). That rules out a hostname
+  mismatch (110200 fires on every browser) and interaction-only hiding in that browser.
+  `onVerified` is a stable `useCallback`, so no effect re-run in production.
+  `.turnstile-widget:empty` only matches before render. The failing browser was not
+  reachable (Chrome extension disconnected). Next: deploy this build, read the code off the
+  banner there, fix per Cloudflare's client-side error-code table.
+- Colours: own classes `human-check-loading` / `-error` / `-retry` from brand tokens, no
+  longer the wildfire red. Contrast (WCAG formula, node): plum on cream 10.97:1, cream on
+  plum-deep 13.28:1. Plum on brand green is 3.87:1 (fails AA), so the retry button is cream
+  with a green border.
+- Type: Atkinson Hyperlegible Next (variable, 400..700) via a Google Fonts link in
+  `frontend/index.html`, human-check block only. Not self-hosted: no font file was downloaded,
+  so the Vite/Workers asset pipeline is unchanged. Local check: computed font-family is Atkinson
+  and `document.fonts.check` returned true.
+- `frontend/test/HumanCheck.test.ts` asserted the old `banner-error` class; now `human-check-error`.
+
+```
+npm run typecheck                       # passes
+npm run build                           # passes; dist/index.html has the font link,
+                                        # dist CSS has human-check-error
+npm test --workspaces --if-present      # tests 67 fail 0 / tests 17 fail 0 / tests 36 fail 0
+```
+
 ## 2026-09-28 — Turnstile session 300 s (#22)
 
 - `SESSION_SECONDS` in `worker/src/turnstile.ts` 3600 -> 300. One human check per app

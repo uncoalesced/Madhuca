@@ -90,7 +90,13 @@ export function HumanCheck({ onVerified }: HumanCheckProps) {
             if (message) setError(message);
             else onVerified();
           },
-          'error-callback': () => setError('The human check could not complete. This is not an all-clear.'),
+          // Turnstile passes an error code (https://developers.cloudflare.com/turnstile/troubleshooting/client-side-errors/error-codes/).
+          // 110200 = hostname not allowed for this site key; 300xxx/600xxx = challenge failed.
+          'error-callback': (code: string) => {
+            console.error('Turnstile error-callback, code:', code);
+            setError(`The human check failed (code: ${code}). This is not an all-clear.`);
+            return true; // handled; stops Turnstile rethrowing it
+          },
           'expired-callback': () => setError('The human check expired. Please try again.'),
         });
       })
@@ -105,7 +111,7 @@ export function HumanCheck({ onVerified }: HumanCheckProps) {
 
   return React.createElement(
     'div',
-    { className: `status-banner ${error ? 'banner-error' : 'banner-loading'} human-check` },
+    { className: `status-banner human-check ${error ? 'human-check-error' : 'human-check-loading'}` },
     React.createElement('span', null, error ?? 'Checking you are human before loading fire data...'),
     React.createElement('div', { ref: container, className: 'turnstile-widget' }),
     error &&
@@ -114,7 +120,7 @@ export function HumanCheck({ onVerified }: HumanCheckProps) {
         'button',
         {
           type: 'button',
-          className: 'retry-button',
+          className: 'human-check-retry',
           onClick: () => {
             setError(null);
             setAttempt((n) => n + 1);

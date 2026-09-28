@@ -4,6 +4,39 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-28 — Human check: error code surfaced, brand colours, own typeface
+
+- `HumanCheck.ts` `error-callback` now takes Turnstile's error code, `console.error`s it and
+  shows "The human check failed (code: X)". Before, the code was discarded.
+- Root cause of the red banner: **not yet identified**. On madhuca.uncoalesced.com in the
+  Claude desktop browser the widget rendered a "Verify you are human" checkbox with no error
+  (only console error: the expected pre-verify 403 on /api/radar). That rules out a hostname
+  mismatch (110200 fires on every browser) and interaction-only hiding in that browser.
+  `onVerified` is a stable `useCallback`, so no effect re-run in production.
+  `.turnstile-widget:empty` only matches before render. The failing browser was not
+  reachable (Chrome extension disconnected). Next: deploy this build, read the code off the
+  banner there, fix per Cloudflare's client-side error-code table.
+- Colours: own classes `human-check-loading` / `-error` / `-retry` from brand tokens, no
+  longer the wildfire red. Contrast (WCAG formula, node): plum on cream 10.97:1, cream on
+  plum-deep 13.28:1. Plum on brand green is 3.87:1 (fails AA), so the retry button is cream
+  with a green border.
+- Type: Atkinson Hyperlegible Next (variable, 400..700), human-check block only. Self-hosted:
+  latin-subset woff2 (33 KB, from fonts.gstatic.com v7) in `frontend/public/fonts/` with
+  `OFL.txt`; `@font-face` in `index.css`, preload in `index.html`. Vite copies it to
+  `frontend/dist/fonts/`; `wrangler deploy` listed `+ /fonts/atkinson-hyperlegible-next-latin.woff2`.
+- Deployed, version f6562906-c166-4524-b434-1413e54b0328. On madhuca.uncoalesced.com: banner
+  class `human-check-loading`, the font was fetched from `/fonts/...woff2` on the same origin,
+  `document.fonts.check` returned true, and the Turnstile checkbox rendered (widget 71px tall).
+  I did not click it. The failing browser's error code is still not observed.
+- `frontend/test/HumanCheck.test.ts` asserted the old `banner-error` class; now `human-check-error`.
+
+```
+npm run typecheck                       # passes
+npm run build                           # passes; dist/index.html has the font link,
+                                        # dist CSS has human-check-error
+npm test --workspaces --if-present      # tests 67 fail 0 / tests 17 fail 0 / tests 36 fail 0
+```
+
 ## 2026-09-28 — Turnstile session 300 s (#22)
 
 - `SESSION_SECONDS` in `worker/src/turnstile.ts` 3600 -> 300. One human check per app

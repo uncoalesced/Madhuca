@@ -1,5 +1,7 @@
 import { decodeMaskIndex, REGIONS, runRadar, type LandCoverMask, type Region } from '@madhuca/logic';
 
+import { hasValidSession, issueSession, verifyTurnstile } from './turnstile.ts';
+
 /** The Workers Rate Limiting binding's runtime shape (no @cloudflare/workers-types dependency). */
 interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>;
@@ -12,6 +14,11 @@ export interface Env {
   ASSETS: { fetch(input: Request | string): Promise<Response> };
   /** Per-IP rate limit on /api/radar (wrangler.jsonc "ratelimits"). 20/min, checked before any FIRMS work. */
   RADAR_LIMITER: RateLimiter;
+  /**
+   * Turnstile secret key, a Worker secret. Also signs the session cookie
+   * (worker/src/turnstile.ts). Without it /api/radar refuses every request.
+   */
+  TURNSTILE_SECRET?: string;
 }
 
 // The Worker reads the prebuilt index (worker/scripts/build-landcover-index.ts), not
@@ -50,9 +57,37 @@ function isRegion(value: string | null): value is Region {
   return (REGIONS as readonly (string | null)[]).includes(value);
 }
 
+const nowSec = () => Math.floor(Date.now() / 1000);
+
+/** POST /api/verify {token}: spend a Turnstile token, answer with a session cookie. */
+async function verify(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return error(405, 'use POST');
+  const clientIp = request.headers.get('cf-connecting-ip');
+  const { success } = await env.RADAR_LIMITER.limit({ key: clientIp ?? 'anon' });
+  if (!success) return rateLimited();
+  if (!env.TURNSTILE_SECRET) return error(500, 'Human verification is not configured.');
+
+  const body = (await request.json().catch(() => null)) as { token?: unknown } | null;
+  if (typeof body?.token !== 'string' || !body.token) return error(400, 'missing Turnstile token');
+
+  let passed: boolean;
+  try {
+    passed = await verifyTurnstile(body.token, env.TURNSTILE_SECRET, clientIp);
+  } catch (err) {
+    return error(502, err instanceof Error ? err.message : 'Turnstile siteverify unreachable');
+  }
+  if (!passed) return error(403, 'Human verification failed, please try again.');
+
+  return new Response(null, {
+    status: 204,
+    headers: { 'set-cookie': await issueSession(env.TURNSTILE_SECRET, nowSec()), 'cache-control': 'no-store' },
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === '/api/verify') return verify(request, env);
     if (url.pathname !== '/api/radar') return error(404, 'not found');
     if (request.method !== 'GET') return error(405, 'use GET');
 
@@ -66,6 +101,18 @@ export default {
     const clientKey = request.headers.get('cf-connecting-ip') ?? 'anon';
     const { success } = await env.RADAR_LIMITER.limit({ key: clientKey });
     if (!success) return rateLimited();
+
+    // Human check before any FIRMS or wind work. A missing secret refuses rather than
+    // letting everything through: a misconfigured deploy must not silently drop the check.
+    if (!env.TURNSTILE_SECRET) {
+      return error(500, 'Human verification not configured, so no fire data was fetched. This is not an all-clear.');
+    }
+    if (!(await hasValidSession(request, env.TURNSTILE_SECRET, nowSec()))) {
+      return Response.json(
+        { error: 'Verify you are human to load fire data. This is not an all-clear.', verify: true },
+        { status: 403, headers: { 'cache-control': 'no-store' } },
+      );
+    }
 
     // No key means nothing was checked. That is an error, never an all-clear.
     if (!env.FIRMS_MAP_KEY) {

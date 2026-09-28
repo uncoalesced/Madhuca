@@ -2,6 +2,84 @@
 
 Log finished, *tested* work here, newest entry on top. Format: date (IST), what was built, how it was verified (include the test command and what passing looked like).
 
+## 2026-09-28 (IST) — Human check on `/api/radar`: Cloudflare Turnstile, once per visit
+
+Requested directly, not in the brief. It touches Joel's frontend, which the PR says.
+
+Mode: managed. Turnstile's `interaction-only` appearance passes most visitors without showing a box. The checkbox appears only when Cloudflare wants an interaction.
+
+How it works:
+- `POST /api/verify {token}` spends the Turnstile token with Cloudflare's siteverify service once.
+- If it passes, it sets `madhuca_session=<expiry>.<HMAC-SHA256>`: HttpOnly, Secure, SameSite=Strict, Path=/api, valid for 1h.
+- `/api/radar` checks that signature with Web Crypto. That takes microseconds of CPU and adds no dependency. Region switches reuse the cookie.
+
+Built:
+- **`worker/src/turnstile.ts`**: issuing and checking the signed session, plus `verifyTurnstile` (siteverify). The HMAC key is derived from `TURNSTILE_SECRET`, so there is one secret, not two.
+- **`worker/src/index.ts`**
+  - Adds `POST /api/verify`, which is rate-limited by the same limiter.
+  - `/api/radar` without a valid session returns 403 `{error: "... This is not an all-clear.", verify: true}`, before any FIRMS or wind call.
+  - A missing `TURNSTILE_SECRET` returns 500. That fails closed rather than silently skipping the check.
+- **`frontend/src/components/HumanCheck.ts`**
+  - Loads Turnstile from `challenges.cloudflare.com`, a script tag rather than npm.
+  - Posts the token to `/api/verify`, then retries the scan.
+  - On a failure, shows an error that says it is not an all-clear, with "Try again".
+- **`frontend/src/App.ts`**
+  - `fetchRadar` maps the verify 403 to `{verify: true}`.
+  - A new `verify` status renders `HumanCheck`.
+- **Site key:** `VITE_TURNSTILE_SITE_KEY`, which is public by design. Dev falls back to Cloudflare's always-pass test key. A production build without it shows "not configured".
+
+### Checks
+
+```bash
+npm run typecheck
+npm run build
+npm test --workspaces --if-present
+```
+Typecheck and build exit 0. Tests: logic 67/67, worker 17/17, frontend 35 pass, 0 fail, 1 cancelled.
+
+The cancelled one is Joel's "fetchRadar on a request that never answers resolves to a timeout error". It is cancelled the same way on a clean `main` under this machine's Node 22.23.2 (checked with `git stash -u`), and it makes `node --test` in `frontend/` exit 1 locally. CI on `main` runs Node 24 and is green. So it is not caused by this change, and I have not edited his test.
+
+New tests:
+- `worker/test/turnstile.test.ts` (7):
+  - No session gives a 403 with `verify: true` and 0 upstream calls.
+  - A passed check sends the token, secret and client IP to siteverify, and returns 204 with a cookie that has all 5 attributes. That cookie then gets a 200.
+  - A failed check is a 403 with no cookie. A siteverify outage is a 502 with no cookie.
+  - `/api/verify` rejects a missing token (400), a GET (405) and a rate-limited client (429).
+  - Rejected sessions: an extended expiry, a tampered signature, bad base64, an expired session, the wrong secret, garbage and a missing cookie. A valid session is found among other cookies.
+  - No secret configured gives a 500 and 0 upstream calls.
+- `frontend/test/HumanCheck.test.ts` (4):
+  - A verify 403 is not an all-clear. A plain 403 stays an ordinary error.
+  - The token POST body and the error messages.
+  - Without a site key, it renders a "not configured, not an all-clear" error.
+
+End to end, with Cloudflare's always-pass test pair:
+- Setup: `TURNSTILE_SECRET=1x0000000000000000000000000000000AA` in `worker/.dev.vars`, a build with `VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA`, then `wrangler dev`.
+- curl, against the real siteverify:
+  ```
+  == radar, no cookie
+  {"error":"Verify you are human to load fire data. This is not an all-clear.","verify":true}
+  HTTP 403
+  == verify with a test token
+  HTTP 204
+  == radar with cookie
+  ... HTTP 200
+  ```
+- Browser (the in-app pane), the `/api/` requests in order, read from `performance.getEntriesByType('resource')`:
+  ```
+  /api/radar?region=punjab 403
+  /api/verify 204
+  /api/radar?region=punjab 200
+  /api/radar?region=telangana 200
+  ```
+- The banner read "2 Active Fire Hotspots in Punjab (2 Stubble Burning, 0 Wildfire)" with 2 markers. Switching to Telangana needed no second check.
+
+Not covered:
+- A real (non-test) site key, so neither the challenge UI Cloudflare shows to suspicious traffic nor its look on phones.
+- The deployed site.
+- Screen-reader behaviour of the widget.
+
+---
+
 ## 2026-09-28 (IST) — Live: `/api/radar` answers for all four regions on madhuca.uncoalesced.com
 
 The site is deployed (Joel). `main` at `c38fdc9` includes the prebuilt-index fix (PR #11). Checked from outside at 16:16 UTC on 2026-09-28, with this exact command (Git Bash):

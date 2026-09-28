@@ -493,3 +493,11 @@ body {
 @keyframes madhuca-spin {
   to { transform: rotate(360deg); }
 }
+
+/* Turnstile human check: the widget sits under the message when Cloudflare shows it. */
+.human-check {
+  flex-wrap: wrap;
+}
+.turnstile-widget:empty {
+  display: none;
+}

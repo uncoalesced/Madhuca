@@ -14,7 +14,7 @@ const LUDHIANA_CROPLAND = `IND,30.8,75.6,330.5,0.42,0.38,2026-10-20,0800,N,VIIRS
 
 const WIND = { current: { time: '2026-10-20T08:00', interval: 900, wind_speed_10m: 4, wind_direction_10m: 315 } };
 
-/** Serves the real published masks from frontend/public, as the ASSETS binding does. */
+/** Serves the real committed files from frontend/public, as the ASSETS binding does. */
 function envWith(key: string | undefined, assetRequests: string[] = []): Env {
   return {
     FIRMS_MAP_KEY: key,
@@ -23,7 +23,7 @@ function envWith(key: string | undefined, assetRequests: string[] = []): Env {
         const path = new URL(typeof input === 'string' ? input : input.url).pathname;
         assetRequests.push(path);
         try {
-          return new Response(readFileSync(join(PUBLIC, path)), { headers: { 'content-type': 'application/json' } });
+          return new Response(readFileSync(join(PUBLIC, path)));
         } catch {
           return new Response('not found', { status: 404 });
         }
@@ -52,7 +52,7 @@ async function withStubbedFetch<T>(handler: (url: string) => Response, run: () =
 
 const get = (path: string, env: Env) => worker.fetch(new Request(`http://localhost${path}`), env);
 
-test('classifies a known Punjab cropland point against the mask read from static assets', async () => {
+test('classifies a known Punjab cropland point against the prebuilt index read from static assets', async () => {
   const assetRequests: string[] = [];
   const { value: res } = await withStubbedFetch(
     (url) => (url.startsWith('https://api.open-meteo.com/') ? Response.json(WIND) : new Response(`${HEADER}\n${LUDHIANA_CROPLAND}\n`)),
@@ -70,7 +70,7 @@ test('classifies a known Punjab cropland point against the mask read from static
   assert.equal(body.classifications[id]!.landCover, 'cropland');
   assert.equal(body.classifications[id]!.kind, 'likely-crop-burning');
   assert.equal(body.plumes[id]!.bearingDeg, 135);
-  assert.deepEqual(assetRequests, ['/landcover/punjab.json']);
+  assert.deepEqual(assetRequests, ['/landcover/punjab.bin']);
 });
 
 test('a missing FIRMS key is a 500 error that says it is not an all-clear, and calls nothing', async () => {

@@ -2,6 +2,92 @@
 
 Log finished, *tested* work here, newest entry on top. Format: date (IST), what was built, how it was verified (include the test command and what passing looked like).
 
+## 2026-09-28 (IST) — Cold-isolate CPU fixed: the Worker loads a prebuilt land-cover index
+
+The team chose the prebuilt-index fix, the first of the three options in the 26 Sept entry below. The old cold path spent 60-260ms of CPU per region against the 10ms budget: `JSON.parse` of the mask plus the classifier's index build. The Worker now does neither.
+
+Built:
+- **`logic/src/classify.ts`**
+  - The grid index is now flat typed arrays: cell offsets, one `Float32Array` of edges, and the centre-membership ids. Before, it was per-cell JS arrays. The lookup logic is unchanged.
+  - Vertices are rounded to float32 in the build, so an index built from JSON and one loaded from `.bin` hold identical coordinates.
+  - New `encodeMaskIndex(mask)` serializes the index.
+  - New `decodeMaskIndex(region, buffer)` wraps a `.bin` in typed-array views and returns a mask whose index is already cached. `classifyHotspot` and `runRadar` are unchanged.
+  - No change to `types.ts`, the `/api/radar` shape or the frontend.
+- **`worker/scripts/build-landcover-index.ts`** (`npm run build:index --workspace worker`) writes `frontend/public/landcover/<region>.bin`. The files are committed. Vite copies them into `frontend/dist`, which is what the Worker serves on Joel's `feat/joel-integration` branch.
+  - Sizes: punjab 1.16 MB, bihar 4.44, delhi 0.07, telangana 4.27. Each is smaller than its JSON.
+- **`worker/src/index.ts`** now loads `/landcover/<region>.bin` instead of the JSON.
+- **`worker/test/landcover-index.test.ts`** fails if any `.bin` is out of date with its JSON. So if the masks are republished without re-running the script, CI goes red instead of the Worker silently classifying against old land cover.
+- The CI emoji step now also walks `worker/scripts`.
+
+### CPU after the change
+
+`node worker/bench/cpu-budget.ts`, third of three runs, on the same laptop proxy as before:
+```
+region     json_MB  json_cold_ms  bin_MB  bin_cold_ms  warm_100_ms
+punjab        1.38          32.2    1.16         0.28         0.27
+bihar         6.05         111.7    4.44         0.75         0.18
+delhi         0.10           1.3    0.07         0.03         0.35
+telangana     5.16          94.4    4.27         0.67         0.18
+```
+- `bin_cold` is what the Worker now pays once per region per isolate: copying the bytes into an ArrayBuffer (as `res.arrayBuffer()` does), decoding, and the first classification.
+- Across the three runs `bin_cold` ranged from 0.03 to 0.92ms. `json_cold` (the old path) ranged from 1.2 to 146ms.
+- **Worst cold request: about 0.9 + 0.5ms for 100 hotspots, against 10ms.**
+- Not measured here: FIRMS CSV parsing and `JSON.stringify` of the response, both small at tens of hotspots. Also not measured: CPU as Cloudflare bills it, which the dashboard shows after the deploy.
+
+### Checks
+
+```bash
+npm run typecheck
+npm run build
+npm test --workspaces --if-present
+node worker/bench/cpu-budget.ts
+```
+
+Passing looks like this. Typecheck and build exit 0. The tests print one block per workspace, in the order logic, worker, frontend:
+```
+# tests 67
+# pass 67
+# fail 0
+# tests 9
+# pass 9
+# fail 0
+# tests 25
+# pass 25
+# fail 0
+```
+
+New tests:
+- `logic/test/classify-index.test.ts` (6):
+  - Per region, the prebuilt index gives `deepEqual` classifications to the JSON mask on 600 points spread over the region box, with months and FRP varied. Every region except Delhi must hit cropland, so this is not just comparing `other` with `other`.
+  - The region survives a round trip, so Telangana `other` in October stays a wildfire.
+  - Truncated, wrong-length, JSON and zeroed buffers all throw instead of being misread.
+- `worker/test/landcover-index.test.ts` (4): each committed `.bin` is byte-equal to `encodeMaskIndex` of its JSON.
+
+The equivalence tests were checked against a planted bug. With the decoder flipping cropland and forest, all 4 region tests failed; the file was then restored.
+
+`wrangler dev` (workerd), using the placeholder key again. Each region gives a 502 from FIRMS; a `.bin` that failed to load or decode would have given a 500 first:
+```
+== punjab
+{"error":"FIRMS responded 400 Bad Request"}
+HTTP 502
+== bihar
+{"error":"FIRMS responded 400 Bad Request"}
+HTTP 502
+== delhi
+{"error":"FIRMS responded 400 Bad Request"}
+HTTP 502
+== telangana
+{"error":"FIRMS responded 400 Bad Request"}
+HTTP 502
+bihar.bin asset HTTP 200 4441056B
+```
+
+Not covered:
+- A 200 with real fires for all four regions. The real key is still not on this machine; Joel saw a Punjab 200 on 28 Sept (`docs/log/joel.md`, on his branch).
+- Cloudflare's own CPU figure.
+
+---
+
 ## 2026-09-26 (IST) — Server path: Worker `/api/radar`, CPU numbers, TTS endpoint check
 
 Built:

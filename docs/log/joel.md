@@ -4,6 +4,86 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-28 — Production basemap blank, and a radar spinner that could hang forever (#12)
+
+**Root cause, basemap.** Not Brave: reproducible in any browser against the built site.
+maplibre-gl v6 finds its worker at `new URL('./maplibre-gl-worker.mjs', import.meta.url)`.
+`vite build` inlines maplibre into `assets/index-*.js` and emitted no worker file, so
+production asked for `/assets/maplibre-gl-worker.mjs` and the Worker's SPA fallback
+answered **200 `text/html`** (index.html), confirmed with curl against the live site.
+The module worker never started, so MapLibre never drew a tile; DevTools shows that as a
+request stuck pending. The 2026-09-26 fix (`optimizeDeps.exclude`) only affects the dev
+server's pre-bundling, which is why dev worked and prod did not. A plain `?url` copy of
+the worker would still break: it imports a sibling `./maplibre-gl-shared.mjs`.
+
+**Fix.** `frontend/src/main.tsx` imports `maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url`
+and calls `setWorkerUrl` before any map exists; `vite.config.ts` sets `worker.format: 'es'`.
+Vite now bundles worker + shared chunk into one emitted `assets/maplibre-gl-worker-*.js`.
+Wired in main.tsx, not MapView.ts, because the node:test suite imports MapView under
+plain Node, which cannot resolve a `?worker&url` import.
+
+**Root cause, spinner.** `fetchRadar` had no deadline. If `/api/radar` stalls (a cold
+isolate waiting on FIRMS / Open-Meteo, neither of which has a timeout), the fetch never
+settles, the try/catch never fires, and "Scanning..." stays forever. Fix:
+`AbortSignal.timeout(25s)` on the request (it also cuts off a stalled body read), which
+resolves to "Radar scan timed out. This is not an all-clear." Also: a result for a region
+the user has already left no longer overwrites the current one (`latestScan` ref).
+Not done: timeouts inside the Worker's own upstream fetches. The client deadline covers
+what the user sees; add Worker-side ones if Worker logs show wall-time stalls.
+
+**Checks.**
+- `frontend/test/build-worker.test.ts`: the built bundle references an emitted maplibre
+  worker, and that worker imports no unemitted sibling. Needs `npm run build` first.
+- `frontend/test/App.test.ts`: a fetch that never answers resolves to a timeout error.
+- Browser, `wrangler dev` serving the production `dist`: basemap tiles render with 2 Punjab
+  hotspots, `/assets/maplibre-gl-worker-B05bmZIj.js` 200, carto tiles/sprites/glyphs 200.
+
+Re-run:
+```
+npm run typecheck && npm run build && npm test --workspaces --if-present
+```
+Passing looks like (real output, filtered to the relevant lines):
+```
+> madhuca@0.0.0 typecheck
+> npm run typecheck --workspaces --if-present
+> @madhuca/logic@0.0.0 typecheck
+> tsc --noEmit
+> @madhuca/worker@0.0.0 typecheck
+> tsc --noEmit
+> @madhuca/frontend@0.0.0 typecheck
+> tsc --noEmit
+> madhuca@0.0.0 build
+> npm run build --workspace frontend
+> @madhuca/frontend@0.0.0 build
+> tsc --noEmit && vite build
+dist/assets/maplibre-gl-worker-B05bmZIj.js    506.75 kB
+✓ built in 3.24s
+> @madhuca/logic@0.0.0 test
+> node --test
+✔ punjab: the prebuilt index classifies 600 points exactly as the JSON mask does (102.2746ms)
+✔ bihar: the prebuilt index classifies 600 points exactly as the JSON mask does (212.8105ms)
+✔ delhi: the prebuilt index classifies 600 points exactly as the JSON mask does (3.9399ms)
+✔ telangana: the prebuilt index classifies 600 points exactly as the JSON mask does (117.8323ms)
+ℹ tests 67
+ℹ pass 67
+ℹ fail 0
+> @madhuca/worker@0.0.0 test
+> node --test
+✔ classifies a known Punjab cropland point against the prebuilt index read from static assets (24.6686ms)
+ℹ tests 10
+ℹ pass 10
+ℹ fail 0
+> @madhuca/frontend@0.0.0 test
+> node --test
+✔ fetchRadar on a request that never answers resolves to a timeout error, not a forever spinner (62.3367ms)
+✔ built bundle references an emitted maplibre worker file (8.1334ms)
+ℹ tests 32
+ℹ pass 32
+ℹ fail 0
+```
+
+---
+
 ## 2026-09-28 — Rate limiting on `/api/radar` (per `madhuca-cloudflare-handoff.md` option 1)
 
 **Built.** Workers Rate Limiting binding, per-IP, 20 requests/minute on `/api/radar`:

@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   type Classification,
   type Hotspot,
@@ -24,13 +24,25 @@ export interface PipelineResult extends RadarResult {
  * The FIRMS key lives only in the Worker, so the browser never sees it. Any
  * non-OK answer comes back as an error, never as an empty all-clear.
  */
-export async function fetchRadar(region: Region, fetchImpl: typeof fetch = fetch): Promise<PipelineResult> {
+export async function fetchRadar(
+  region: Region,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 25_000,
+): Promise<PipelineResult> {
   const empty = { hotspots: [], plumes: {}, classifications: {} };
+  // Without a deadline a stalled upstream left "Scanning..." up forever, which reads
+  // as a scan still in progress. The signal also cuts off a stalled body read below.
+  const signal = AbortSignal.timeout(timeoutMs);
   let res: Response;
   try {
-    res = await fetchImpl(`/api/radar?region=${region}`);
+    res = await fetchImpl(`/api/radar?region=${region}`, { signal });
   } catch {
-    return { ...empty, error: 'Could not reach the radar service. This is not an all-clear.' };
+    return {
+      ...empty,
+      error: signal.aborted
+        ? 'Radar scan timed out. This is not an all-clear.'
+        : 'Could not reach the radar service. This is not an all-clear.',
+    };
   }
   const body = (await res.json().catch(() => null)) as (RadarResult & { error?: string }) | null;
   if (!res.ok || !body || !Array.isArray(body.hotspots)) {
@@ -75,7 +87,12 @@ export function App() {
 
   const activeRegionLabel = REGION_LABELS[region]?.name ?? region;
 
+  // Only the latest scan may update state: a slow answer for a region the user has
+  // already left must not overwrite the one they are looking at.
+  const latestScan = useRef(0);
+
   const executePipeline = useCallback(async (targetRegion: Region) => {
+    const scan = ++latestScan.current;
     setStatus('loading');
     setErrorMessage(null);
     setSelected(null);
@@ -83,6 +100,7 @@ export function App() {
     try {
       setProgressMsg(`Scanning ${targetRegion} for active fires...`);
       const result = IS_DEMO ? await demoRadar(targetRegion) : await fetchRadar(targetRegion);
+      if (scan !== latestScan.current) return;
 
       if (result.error) {
         setErrorMessage(result.error);
@@ -100,6 +118,7 @@ export function App() {
         setStatus('ready');
       }
     } catch (err) {
+      if (scan !== latestScan.current) return;
       const msg = err instanceof Error ? err.message : 'Radar scan encountered an error';
       setErrorMessage(msg);
       setStatus('error');

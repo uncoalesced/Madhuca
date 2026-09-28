@@ -2,6 +2,41 @@
 
 Log finished, *tested* work here, newest entry on top. Format: date (IST), what was built, how it was verified (include the test command and what passing looked like).
 
+## 2026-09-28 (IST) — Live: `/api/radar` answers for all four regions on madhuca.uncoalesced.com
+
+The site is deployed (Joel). `main` at `c38fdc9` includes the prebuilt-index fix (PR #11). Checked from outside at 16:16 UTC on 2026-09-28, with this exact command (Git Bash):
+
+```bash
+curl -s -o /dev/null -w "site / HTTP %{http_code} %{content_type}
+" https://madhuca.uncoalesced.com/; for r in punjab bihar delhi telangana; do curl -s -m 90 "https://madhuca.uncoalesced.com/api/radar?region=$r" -o "$TEMP/live-$r.json" -w "$r HTTP %{http_code} %{time_total}s  "; node -e "
+let b;try{b=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))}catch(e){console.log('non-JSON body');process.exit()}
+if(b.error){console.log('error:',b.error);process.exit()}
+const c=Object.values(b.classifications);const n=k=>c.filter(x=>x.kind===k).length;
+console.log(b.hotspots.length+' hotspots, '+Object.keys(b.plumes).length+' plumes | crop-burning '+n('likely-crop-burning')+', wildfire '+n('likely-wildfire'));
+" "$TEMP/live-$r.json"; done; curl -s -o /dev/null -w "bad region HTTP %{http_code}
+" "https://madhuca.uncoalesced.com/api/radar?region=kerala"; curl -s -o /dev/null -w "telangana.bin HTTP %{http_code} %{size_download}B
+" https://madhuca.uncoalesced.com/landcover/telangana.bin
+```
+
+Output:
+```
+site / HTTP 200 text/html
+punjab HTTP 200 1.297446s  2 hotspots, 2 plumes | crop-burning 2, wildfire 0
+bihar HTTP 200 1.084524s  0 hotspots, 0 plumes | crop-burning 0, wildfire 0
+delhi HTTP 200 0.599700s  0 hotspots, 0 plumes | crop-burning 0, wildfire 0
+telangana HTTP 200 0.722058s  6 hotspots, 6 plumes | crop-burning 5, wildfire 1
+bad region HTTP 400
+telangana.bin HTTP 200 4269232B
+```
+
+Bihar and Delhi at 0 are real zero-row FIRMS answers, not errors: the Worker returns an error status for any failure, and both returned 200. The same four results came back locally the same day, through `wrangler dev` with the real key: Punjab 2 cropland and crop-burning; Telangana 5 cropland, 1 forest.
+
+Not covered:
+- Cloudflare's billed CPU per request. The dashboard CPU chart is the real check of the 10ms budget, and I do not have access to it.
+- The browser UI on a phone (Rahul's QA checklist).
+
+---
+
 ## 2026-09-28 (IST) — Cold-isolate CPU fixed: the Worker loads a prebuilt land-cover index
 
 The team chose the prebuilt-index fix, the first of the three options in the 26 Sept entry below. The old cold path spent 60-260ms of CPU per region against the 10ms budget: `JSON.parse` of the mask plus the classifier's index build. The Worker now does neither.

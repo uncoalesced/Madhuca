@@ -118,3 +118,13 @@ test('App renders brand header, region selector, and mandatory ESA attribution f
     'Expected honest Gaussian-puff model disclaimer'
   );
 });
+
+test('fetchRadar on a request that never answers resolves to a timeout error, not a forever spinner', async () => {
+  const hang = ((_url: string, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+    })) as typeof fetch;
+  const result = await fetchRadar('telangana', hang, 50);
+  assert.match(result.error ?? '', /timed out.*not an all-clear/);
+  assert.equal(result.hotspots.length, 0);
+});

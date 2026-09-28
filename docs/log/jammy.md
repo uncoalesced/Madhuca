@@ -2,6 +2,62 @@
 
 Log finished, *tested* work here, newest entry on top. Format: date (IST), what was built, how it was verified (include the test command and what passing looked like).
 
+## 2026-09-29 (IST) — ML fire-risk forecast for Telangana / AP (issue #21, offline part)
+
+Built in `ml/`: offline only, run by hand or by the manual `ml-risk` workflow.
+- `export_cells.ts`: per 0.1 degree cell, the India share (`insideIndia`) and the forest/cropland share (the app's own `classifyHotspot`), with the box taken from `REGION_BBOX`.
+- `fetch_firms.py`: the FIRMS VIIRS SNPP archive (SP to 2026-06-30, NRT after). It uses 5-day chunks (the API's maximum is 5, not 10) and 4 workers, which stays around a third of the key's 5000 transactions per 10 minutes, shared with the live site.
+- `train_risk.py`: logistic regression on 8 features. It evaluates on a later period than it trains on, compares against two baselines, and exports a `RiskGrid` (the shape proposed in #20).
+- Also `ml/README.md` (data sources, licences, limits) and `.github/workflows/ml-risk.yml` (manual; needs a `FIRMS_MAP_KEY` repo secret, which is not set yet).
+
+What the grid is: the probability of at least one VIIRS detection per cell in the next 14 days. That means **any** vegetation fire, crop burning included, not only wildfire. It is labelled an experimental statistical estimate, and a low value is never an all-clear.
+
+Two data problems were found and fixed before trusting the numbers:
+- **A stray overlapping chunk.** My manual 2025-03-01 test download overlapped the 5-day grid and would have double-counted March 2025, which falls in the test period. I removed it, and the training script now refuses chunks that overlap or leave a gap.
+- **Factories scored as top fire risks.** The first forecast ranked the Ballari steel works, Visakhapatnam and Ennore as the top cells. NRT rows carry no `type` column, so static industrial sources got through. Now any detection within ~1 km of an archived type-2 location is dropped: 9,883 detections near 168 sites. The top cells are now cropland (Nellore, north of Chennai).
+
+### Result
+
+```bash
+node ml/export_cells.ts telangana
+FIRMS_MAP_KEY=... python ml/fetch_firms.py telangana 2019-01-01 2026-09-28
+python ml/train_risk.py telangana 2026-09-29
+```
+The download printed `telangana: 542 chunks fetched, 24 cached, 826236 detections, 2019-01-01..2026-09-28`. Training output:
+```
+telangana: 566 files, 587713 detections kept, 228640 dropped (type, low confidence, outside India), 9883 dropped near 168 known industrial sources, 2019-01-01..2026-09-28
+train: 2020-01-01..2023-12-13 every 7 days, 820341 cell-windows, positive rate 0.1651
+test:  2024-01-01..2026-06-15 every 7 days, 511227 cell-windows, positive rate 0.2003
+scorer                              ROC-AUC   PR-AUC
+model (logistic regression)          0.8704   0.6296
+baseline: climatology only           0.8492   0.5692
+baseline: last 30 days only          0.7431   0.4424
+Brier: model 0.10805, constant base rate 0.16143
+coefficients (standardised): {'clim': 0.5792, 'hist': 0.1508, 'recent30': 0.1904, 'nbr30': 0.4908, 'forest': -0.0929, 'cropland': 0.0873, 'doy_sin': 0.4746, 'doy_cos': 0.6109}
+forecast 2026-09-29..2026-10-12: probability min/median/max [0.0104, 0.0211, 0.1409]
+wrote ...\ml\out	elangana.json (12604 bytes)
+```
+
+Honest reading of the numbers:
+- **Most of the skill is seasonal history.** The model adds +0.021 ROC-AUC and +0.060 PR-AUC over climatology alone. It is a modest, real improvement, not a breakthrough.
+- **It is well calibrated.** Its Brier score is 0.108, against 0.161 for always guessing the base rate.
+
+Published as `frontend/public/risk/telangana.json`: 12,604 bytes, 81 x 74 cells, 2031 of them 0 (outside India = no data), valid 2026-09-29 to 2026-10-12.
+
+Checks on this branch:
+- typecheck and build exit 0
+- tests: logic 67/67, worker 17/17, frontend 35 pass, 0 fail (the one `not ok` is the known Node 22 cancellation)
+- emoji check, now including `ml/`: 0 lines
+
+Not done yet:
+- the TS loader and test (`logic/src/risk.ts`, `risk.test.ts`)
+- the spread stub
+- the classifier hook
+
+All three need the types agreed on #20 (no reply from Joel yet). Also: the forecast is only as fresh as its date, so it needs a re-run to move forward. Weather is not a feature.
+
+---
+
 ## 2026-09-28 (IST) — Human check on `/api/radar`: Cloudflare Turnstile, once per visit
 
 Requested directly, not in the brief. It touches Joel's frontend, which the PR says.

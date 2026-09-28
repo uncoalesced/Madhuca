@@ -29,6 +29,14 @@ The logic core is done; what's left is running it where the FIRMS key can stay s
 - [x] **TTS endpoint reality check** *(`tts.indicnlp.org` does not resolve: NXDOMAIN on 2026-09-26. The frontend's text-only fallback is needed.)* — confirm the default Indic-TTS endpoint in `logic/src/tts.ts` actually answers from a live call. If it doesn't, the frontend falls back to showing text only, labelled as such. Check: the live call result logged.
 - [x] **Deploy support** — Worker secrets and routes with Joel on the 29th. Check: live `/api/radar` answers. *(28 Sept: deployed a day early, and live `/api/radar` answers for all four regions. The CPU figure in the Cloudflare dashboard is not checked by me.)*
 
+### ML wildfire prediction (added 2026-09-28, issue #21; types in contract issue #20)
+
+- [ ] **Fire-risk forecast, Telangana / AP**. Partial, as of 29 Sept:
+  - Done: the offline model in `ml/`, held-out ROC-AUC 0.870 against 0.849 for climatology alone, published as `frontend/public/risk/telangana.json` (12.6 KB).
+  - Still to do: `logic/src/risk.ts` and its `risk.test.ts`. Those need `RiskGrid` in `types.ts`, which waits on Joel agreeing on #20.
+- [ ] **Learned crop-burning vs wildfire classifier**. Stub plus roadmap. Blocked on #20 (`ClassifierWeights`), and on where the labels come from, which is still open.
+- [ ] **Spread prediction stub** (`logic/src/spread.ts`). Blocked on #20 (`SpreadEstimate`).
+
 ## Definition of done (per task — this matters, read it)
 
 Antigravity has a known habit of reporting things done when they aren't. For every task above:

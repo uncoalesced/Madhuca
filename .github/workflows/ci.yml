@@ -34,7 +34,7 @@ jobs:
             if (!/\.(ts|tsx|js|mjs|css|html|sh|py)$/.test(f)) continue;
             fs.readFileSync(p, 'utf8').split('\n').forEach((l, i) => { if (re.test(l)) { bad++; console.log(p + ':' + (i + 1) + ': ' + l.trim()); } });
           } };
-          ['frontend/src', 'frontend/test', 'logic/src', 'logic/test', 'worker/src', 'worker/test', 'worker/bench', 'worker/scripts', 'pipeline'].forEach(walk);
+          ['frontend/src', 'frontend/test', 'logic/src', 'logic/test', 'worker/src', 'worker/test', 'worker/bench', 'worker/scripts', 'ml', 'pipeline'].forEach(walk);
           if (bad) { console.error(bad + ' line(s) with emoji. See docs/CODING_STANDARDS.md.'); process.exit(1); }
           "
 

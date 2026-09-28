@@ -4,6 +4,15 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-28 — Turnstile session 300 s (#22)
+
+- `SESSION_SECONDS` in `worker/src/turnstile.ts` 3600 -> 300. One human check per app
+  open; after 5 minutes the next scan gets 403 `verify` and the widget shows again
+  (existing flow from #16, unchanged).
+- Check: `npm test -w worker` (turnstile.test.ts asserts `Max-Age=${SESSION_SECONDS}` and
+  rejection at issue + SESSION_SECONDS). Passing: `fail 0`.
+- Not checked: the live re-prompt after 5 minutes on the deployed site.
+
 ## 2026-09-28 — Telangana / AP land-cover mask, prebuilt index, CPU, flaky timing test
 
 - `landcover.yml` was failing with exit 126: `7fc08bf` had dropped the executable bit on

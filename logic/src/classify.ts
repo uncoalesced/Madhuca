@@ -1,4 +1,4 @@
-import type { Classification, Hotspot, LandCover, LandCoverMask } from './types';
+import type { Classification, Hotspot, LandCover, LandCoverMask, Region } from './types';
 
 /**
  * Grid index over the mask for point-in-polygon lookups.
@@ -15,22 +15,27 @@ import type { Classification, Hotspot, LandCover, LandCoverMask } from './types'
  * That region loop, not one hotspot, is what the 10ms Workers budget covers.
  */
 interface MaskIndex {
-  /** Land cover per polygon; polygon ids index into this. */
-  landCovers: ('cropland' | 'forest')[];
+  /** Land cover per polygon (0 cropland, 1 forest); polygon ids index into this. */
+  landCovers: Uint8Array;
   minX: number;
   minY: number;
   cols: number;
   rows: number;
-  /** Per cell: flat [x1, y1, x2, y2, polygonId, ...] for every edge touching the cell. */
-  edges: (number[] | undefined)[];
+  /** Cell c's edges are edges[cellStart[c] .. cellStart[c + 1]]. */
+  cellStart: Uint32Array;
+  /** Flat [x1, y1, x2, y2, polygonId, ...] for every edge touching each cell, cell by cell. */
+  edges: Float32Array;
   /**
-   * Per cell: ids of the polygons containing the cell centre, ascending. Nearly
-   * always zero or one — but the pipeline simplifies each polygon independently,
-   * so neighbours can overlap by a sliver, and a lookup must not assume otherwise.
+   * Cell c's centre is inside polygons centreIds[centreStart[c] .. centreStart[c + 1]],
+   * ascending. Nearly always zero or one — but the pipeline simplifies each polygon
+   * independently, so neighbours can overlap by a sliver, and a lookup must not
+   * assume otherwise.
    */
-  centre: (readonly number[])[];
+  centreStart: Uint32Array;
+  centreIds: Uint32Array;
 }
 
+const LAND_COVERS = ['cropland', 'forest'] as const;
 const NONE: readonly number[] = [];
 
 /** ~5.5 km. Keeps edges per cell in the tens for the 390m-resolution masks. */
@@ -54,7 +59,7 @@ function extractFeatures(mask: LandCoverMask): unknown[] {
 }
 
 function buildIndex(mask: LandCoverMask): MaskIndex {
-  const landCovers: ('cropland' | 'forest')[] = [];
+  const landCovers: number[] = [];
   const polygons: Ring[][] = [];
   let minX = Infinity;
   let minY = Infinity;
@@ -75,20 +80,20 @@ function buildIndex(mask: LandCoverMask): MaskIndex {
     for (const part of parts) {
       if (!Array.isArray(part) || !isRing(part[0])) continue;
       for (const pt of part[0]) {
-        const x = pt[0]!;
-        const y = pt[1]!;
+        const x = Math.fround(pt[0]!);
+        const y = Math.fround(pt[1]!);
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
       }
-      landCovers.push(landCover);
+      landCovers.push(landCover === 'forest' ? 1 : 0);
       polygons.push(part.filter(isRing));
     }
   }
 
   if (polygons.length === 0 || !Number.isFinite(minX) || !Number.isFinite(minY)) {
-    return { landCovers, minX: 0, minY: 0, cols: 0, rows: 0, edges: [], centre: [] };
+    return pack(landCovers, 0, 0, 0, 0, [], []);
   }
 
   const cols = Math.floor((maxX - minX) / CELL_DEG) + 1;
@@ -98,10 +103,12 @@ function buildIndex(mask: LandCoverMask): MaskIndex {
   for (let k = 0; k < polygons.length; k++) {
     for (const ring of polygons[k]!) {
       for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        const x1 = ring[j]![0]!;
-        const y1 = ring[j]![1]!;
-        const x2 = ring[i]![0]!;
-        const y2 = ring[i]![1]!;
+        // Rounded to float32, as the index stores them, so the sweep below and every
+        // lookup see exactly the coordinates a prebuilt index (encodeMaskIndex) holds.
+        const x1 = Math.fround(ring[j]![0]!);
+        const y1 = Math.fround(ring[j]![1]!);
+        const x2 = Math.fround(ring[i]![0]!);
+        const y2 = Math.fround(ring[i]![1]!);
         if (x1 === x2 && y1 === y2) continue;
         const c0 = Math.floor((Math.min(x1, x2) - minX) / CELL_DEG);
         const c1 = Math.floor((Math.max(x1, x2) - minX) / CELL_DEG);
@@ -165,7 +172,45 @@ function buildIndex(mask: LandCoverMask): MaskIndex {
     }
   }
 
-  return { landCovers, minX, minY, cols, rows, edges, centre };
+  return pack(landCovers, minX, minY, cols, rows, edges, centre);
+}
+
+/** Flattens the per-cell arrays the build works in into the typed arrays a lookup reads. */
+function pack(
+  landCovers: number[],
+  minX: number,
+  minY: number,
+  cols: number,
+  rows: number,
+  edges: (number[] | undefined)[],
+  centre: (readonly number[])[],
+): MaskIndex {
+  const cells = cols * rows;
+  const cellStart = new Uint32Array(cells + 1);
+  const centreStart = new Uint32Array(cells + 1);
+  for (let c = 0; c < cells; c++) {
+    cellStart[c + 1] = cellStart[c]! + (edges[c]?.length ?? 0);
+    centreStart[c + 1] = centreStart[c]! + (centre[c]?.length ?? 0);
+  }
+  const flatEdges = new Float32Array(cellStart[cells]!);
+  const centreIds = new Uint32Array(centreStart[cells]!);
+  for (let c = 0; c < cells; c++) {
+    const cell = edges[c];
+    if (cell) flatEdges.set(cell, cellStart[c]!);
+    const ids = centre[c];
+    if (ids && ids.length > 0) centreIds.set(ids, centreStart[c]!);
+  }
+  return {
+    landCovers: Uint8Array.from(landCovers),
+    minX,
+    minY,
+    cols,
+    rows,
+    cellStart,
+    edges: flatEdges,
+    centreStart,
+    centreIds,
+  };
 }
 
 /**
@@ -185,9 +230,11 @@ function findLandCover(lon: number, lat: number, mask: LandCoverMask): LandCover
   if (c < 0 || c >= index.cols || r < 0 || r >= index.rows) return 'other';
 
   const cellId = r * index.cols + c;
-  const start = index.centre[cellId]!;
-  const cell = index.edges[cellId];
-  if (!cell) return start.length === 0 ? 'other' : index.landCovers[start[0]!]!;
+  const start = index.centreIds.subarray(index.centreStart[cellId]!, index.centreStart[cellId + 1]!);
+  const cell = index.edges;
+  const e0 = index.cellStart[cellId]!;
+  const e1 = index.cellStart[cellId + 1]!;
+  if (e0 === e1) return start.length === 0 ? 'other' : LAND_COVERS[index.landCovers[start[0]!]!]!;
 
   // Path centre -> (lon, yc) -> (lon, lat), both legs inside this cell. Each edge
   // crossing flips membership of that edge's polygon. Crossings are assigned with
@@ -199,7 +246,7 @@ function findLandCover(lon: number, lat: number, mask: LandCoverMask): LandCover
   const vy0 = Math.min(yc, lat);
   const vy1 = Math.max(yc, lat);
   let flips: Map<number, number> | undefined;
-  for (let e = 0; e < cell.length; e += EDGE_STRIDE) {
+  for (let e = e0; e < e1; e += EDGE_STRIDE) {
     const x1 = cell[e]!;
     const y1 = cell[e + 1]!;
     const x2 = cell[e + 2]!;
@@ -221,7 +268,7 @@ function findLandCover(lon: number, lat: number, mask: LandCoverMask): LandCover
     }
   }
 
-  if (!flips) return start.length === 0 ? 'other' : index.landCovers[start[0]!]!;
+  if (!flips) return start.length === 0 ? 'other' : LAND_COVERS[index.landCovers[start[0]!]!]!;
 
   // Containing polygons = centre's set XOR odd flips. On a sliver overlap, the
   // lowest id (earliest feature in the mask) wins, deterministically.
@@ -235,7 +282,95 @@ function findLandCover(lon: number, lat: number, mask: LandCoverMask): LandCover
   for (const [k, odd] of flips) {
     if (odd && !start.includes(k) && (best === -1 || k < best)) best = k;
   }
-  return best === -1 ? 'other' : index.landCovers[best]!;
+  return best === -1 ? 'other' : LAND_COVERS[index.landCovers[best]!]!;
+}
+
+// Prebuilt index file: a Float64 header, then the MaskIndex arrays back to back.
+// Loading one is a handful of typed-array views over the bytes, with no JSON.parse
+// and no index build: those two cost 60-260ms of CPU per region on a cold Worker,
+// against a 10ms budget (worker/bench/cpu-budget.ts).
+const INDEX_MAGIC = 0x4d445831; // "MDX1"
+const INDEX_VERSION = 1;
+const HEADER_SLOTS = 10; // magic, version, minX, minY, cols, rows, polygons, edge floats, centre ids, 0
+
+/**
+ * Serialize a mask's lookup index. Run offline (worker/scripts/build-landcover-index.ts),
+ * never on the request path: it pays the full parse and build it exists to avoid.
+ */
+export function encodeMaskIndex(mask: LandCoverMask): ArrayBuffer {
+  const index = buildIndex(mask);
+  const polygons = index.landCovers.length;
+  const lcBytes = Math.ceil(polygons / 4) * 4;
+  const bytes =
+    HEADER_SLOTS * 8 +
+    lcBytes +
+    4 * (index.cellStart.length + index.edges.length + index.centreStart.length + index.centreIds.length);
+  const buffer = new ArrayBuffer(bytes);
+  new Float64Array(buffer, 0, HEADER_SLOTS).set([
+    INDEX_MAGIC,
+    INDEX_VERSION,
+    index.minX,
+    index.minY,
+    index.cols,
+    index.rows,
+    polygons,
+    index.edges.length,
+    index.centreIds.length,
+    0,
+  ]);
+  let offset = HEADER_SLOTS * 8;
+  new Uint8Array(buffer, offset, polygons).set(index.landCovers);
+  offset += lcBytes;
+  for (const part of [index.cellStart, index.edges, index.centreStart, index.centreIds]) {
+    new Uint8Array(buffer, offset, part.byteLength).set(new Uint8Array(part.buffer, part.byteOffset, part.byteLength));
+    offset += part.byteLength;
+  }
+  return buffer;
+}
+
+/**
+ * Load a prebuilt index as a mask for `classifyHotspot`. The returned mask carries
+ * no features; its index is already cached against it, so no lookup ever builds one.
+ * Throws on a file that is not a version-1 index of the expected length.
+ */
+export function decodeMaskIndex(region: Region, buffer: ArrayBuffer): LandCoverMask {
+  if (buffer.byteLength < HEADER_SLOTS * 8) throw new Error('land-cover index is truncated');
+  const header = new Float64Array(buffer, 0, HEADER_SLOTS);
+  if (header[0] !== INDEX_MAGIC || header[1] !== INDEX_VERSION) {
+    throw new Error('not a version-1 land-cover index');
+  }
+  const [, , minX, minY, cols, rows, polygons, edgeFloats, centreIds] = header as unknown as number[];
+  const cells = cols! * rows!;
+  const lcBytes = Math.ceil(polygons! / 4) * 4;
+  const expected = HEADER_SLOTS * 8 + lcBytes + 4 * (2 * (cells + 1) + edgeFloats! + centreIds!);
+  if (buffer.byteLength !== expected) {
+    throw new Error(`land-cover index is ${buffer.byteLength} bytes, expected ${expected}`);
+  }
+
+  let offset = HEADER_SLOTS * 8;
+  const landCovers = new Uint8Array(buffer, offset, polygons);
+  offset += lcBytes;
+  const cellStart = new Uint32Array(buffer, offset, cells + 1);
+  offset += cellStart.byteLength;
+  const edges = new Float32Array(buffer, offset, edgeFloats);
+  offset += edges.byteLength;
+  const centreStart = new Uint32Array(buffer, offset, cells + 1);
+  offset += centreStart.byteLength;
+  const ids = new Uint32Array(buffer, offset, centreIds);
+
+  const mask: LandCoverMask = { region, features: [] };
+  indexCache.set(mask, {
+    landCovers,
+    minX: minX!,
+    minY: minY!,
+    cols: cols!,
+    rows: rows!,
+    cellStart,
+    edges,
+    centreStart,
+    centreIds: ids,
+  });
+  return mask;
 }
 
 /**

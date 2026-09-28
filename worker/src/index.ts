@@ -1,4 +1,4 @@
-import { REGIONS, runRadar, type LandCoverMask, type Region } from '@madhuca/logic';
+import { decodeMaskIndex, REGIONS, runRadar, type LandCoverMask, type Region } from '@madhuca/logic';
 
 /** The Workers Rate Limiting binding's runtime shape (no @cloudflare/workers-types dependency). */
 interface RateLimiter {
@@ -8,22 +8,24 @@ interface RateLimiter {
 /** Bindings from wrangler.jsonc. FIRMS_MAP_KEY is a Worker secret, never in the repo or the client bundle. */
 export interface Env {
   FIRMS_MAP_KEY?: string;
-  /** Static assets: the land-cover masks under /landcover/<region>.json. */
+  /** Static assets: the prebuilt land-cover indexes under /landcover/<region>.bin. */
   ASSETS: { fetch(input: Request | string): Promise<Response> };
   /** Per-IP rate limit on /api/radar (wrangler.jsonc "ratelimits"). 20/min, checked before any FIRMS work. */
   RADAR_LIMITER: RateLimiter;
 }
 
-// Parsed masks live for the isolate's lifetime, so only the first request per region
-// per isolate pays the parse and the classifier's index build (worker/bench/cpu-budget.ts).
+// The Worker reads the prebuilt index (worker/scripts/build-landcover-index.ts), not
+// the JSON mask: parsing the JSON and building the index on a cold isolate cost
+// 60-260ms of CPU per region against the 10ms budget, and loading the .bin is a few
+// typed-array views (worker/bench/cpu-budget.ts). Kept for the isolate's lifetime.
 const masks = new Map<Region, Promise<LandCoverMask>>();
 
 function loadMask(env: Env, region: Region, requestUrl: string): Promise<LandCoverMask> {
   let mask = masks.get(region);
   if (!mask) {
-    mask = env.ASSETS.fetch(new URL(`/landcover/${region}.json`, requestUrl).toString()).then((res) => {
+    mask = env.ASSETS.fetch(new URL(`/landcover/${region}.bin`, requestUrl).toString()).then(async (res) => {
       if (!res.ok) throw new Error(`land-cover mask for ${region} responded ${res.status}`);
-      return res.json() as Promise<LandCoverMask>;
+      return decodeMaskIndex(region, await res.arrayBuffer());
     });
     // A failed load is not cached, so the next request retries it.
     mask.catch(() => masks.delete(region));

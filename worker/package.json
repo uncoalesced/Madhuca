@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "build:index": "node scripts/build-landcover-index.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test"
   },

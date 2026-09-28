@@ -7,7 +7,7 @@
 
 const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 export const SESSION_COOKIE = 'madhuca_session';
-export const SESSION_SECONDS = 3600;
+export const SESSION_SECONDS = 300; // one check per app open, re-checked after 5 minutes
 
 const encoder = new TextEncoder();
 

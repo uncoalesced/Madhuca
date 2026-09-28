@@ -18,7 +18,9 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 - Footer on one slim row, ESA WorldCover attribution and not-HYSPLIT wording both kept
   verbatim; `© Engineered by uncoalesced` bottom right.
 - Colours from `assets/palette/palette_rules.txt`: header/footer #453643, brand title and
-  active region tab #4DAA57, status banner text #BD897E on #F8FFE5.
+  active region tab #4DAA57. Status banner text uses #8F5A4F on #F8FFE5 (5.46:1) instead of
+  palette #BD897E (2.9:1). Buttons (language pill, Listen, panel border) are #4DAA57 with
+  #1F181E text (5.96:1; white on that green is 2.92:1), hover #62B86B (7.11:1).
 
 Checks:
 

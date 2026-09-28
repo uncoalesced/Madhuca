@@ -13,15 +13,16 @@
   --color-safe: #15803d;
   --color-safe-bg: #dcfce7;
 
-  --primary-accent: #0f766e;
+  --primary-accent: #4daa57;
+  --primary-accent-hover: #62b86b;
+  --on-accent: #1f181e; /* white on brand green is 2.9:1; this is 6:1 */
 
   /* Brand palette: assets/palette/palette_rules.txt */
   --brand-green: #4daa57;
   --brand-plum: #453643;
   --brand-plum-deep: #362a34;
-  --brand-rose: #bd897e;
+  --brand-rose: #8f5a4f; /* palette BD897E darkened for 4.5:1 on cream */
   --brand-cream: #f8ffe5;
-  --primary-accent-hover: #115e59;
 
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', Oxygen, Ubuntu, Cantarell, sans-serif;
   color: var(--text-main);
@@ -372,14 +373,14 @@ body {
 }
 
 .lang-pill-active {
-  background-color: #0f766e !important;
-  color: #ffffff !important;
-  border-color: #0f766e !important;
+  background-color: var(--primary-accent) !important;
+  color: var(--on-accent) !important;
+  border-color: var(--primary-accent) !important;
 }
 
 .tts-button {
-  background-color: #0f766e;
-  color: #ffffff;
+  background-color: var(--primary-accent);
+  color: var(--on-accent);
   border: none;
   min-height: 48px;
   padding: 0.75rem 1rem;
@@ -394,7 +395,7 @@ body {
 }
 
 .tts-button:hover {
-  background-color: #115e59;
+  background-color: var(--primary-accent-hover);
 }
 
 .tts-button:disabled {
@@ -403,11 +404,12 @@ body {
 }
 
 .tts-state-playing {
-  background-color: #0284c7;
+  background-color: var(--primary-accent-hover);
 }
 
 .tts-state-error {
   background-color: #b91c1c;
+  color: #ffffff;
 }
 
 /* Panel Cards & Advisory */

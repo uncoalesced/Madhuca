@@ -1,7 +1,11 @@
 // Cloudflare Workers free tier (docs/MASTER.md section 5.1).
-// Secret, set once per environment and never committed:
+// Secrets, set once per environment and never committed:
 //   npx wrangler secret put FIRMS_MAP_KEY      (deployed)
-//   worker/.dev.vars: FIRMS_MAP_KEY=...        (wrangler dev; gitignored)
+//   npx wrangler secret put TURNSTILE_SECRET   (deployed; /api/radar refuses every scan without it)
+//   worker/.dev.vars: FIRMS_MAP_KEY=... and TURNSTILE_SECRET=...   (wrangler dev; gitignored)
+// For local runs, TURNSTILE_SECRET=1x0000000000000000000000000000000AA and a build with
+// VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA are Cloudflare's always-pass test pair.
+// Production builds need VITE_TURNSTILE_SITE_KEY set to the real widget's site key (public).
 {
   "name": "madhuca",
   "main": "src/index.ts",

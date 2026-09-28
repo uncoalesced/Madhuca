@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import worker, { type Env } from '../src/index.ts';
+import { issueSession } from '../src/turnstile.ts';
+
+const TURNSTILE_SECRET = 'test-turnstile-secret';
 
 const PUBLIC = join(import.meta.dirname, '..', '..', 'frontend', 'public');
 
@@ -32,6 +35,7 @@ function envWith(key: string | undefined, assetRequests: string[] = []): Env {
     // Every other test in this file is exercising something other than the rate limit,
     // so the default stub always allows. Only the rate-limit test below overrides it.
     RADAR_LIMITER: { limit: async () => ({ success: true }) },
+    TURNSTILE_SECRET,
   };
 }
 
@@ -50,7 +54,13 @@ async function withStubbedFetch<T>(handler: (url: string) => Response, run: () =
   }
 }
 
-const get = (path: string, env: Env) => worker.fetch(new Request(`http://localhost${path}`), env);
+/** `name=value` of a fresh, valid session cookie, as a browser would send it back. */
+const sessionCookie = async () => (await issueSession(TURNSTILE_SECRET, Math.floor(Date.now() / 1000))).split(';')[0]!;
+
+// The tests below exercise things other than the human check, so they send a valid
+// session; worker/test/turnstile.test.ts covers the check itself.
+const get = async (path: string, env: Env) =>
+  worker.fetch(new Request(`http://localhost${path}`, { headers: { cookie: await sessionCookie() } }), env);
 
 test('classifies a known Punjab cropland point against the prebuilt index read from static assets', async () => {
   const assetRequests: string[] = [];

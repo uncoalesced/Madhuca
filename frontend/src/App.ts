@@ -13,10 +13,13 @@ import {
 import { MapView } from './components/MapView.ts';
 import { RegionSelector, REGION_LABELS } from './components/RegionSelector.ts';
 import { HotspotDetailPanel } from './components/HotspotDetailPanel.ts';
+import { HumanCheck } from './components/HumanCheck.ts';
 import { demoHotspots } from './demoHotspots.ts';
 
 export interface PipelineResult extends RadarResult {
   error?: string;
+  /** The Worker wants a human check (Turnstile) before it will scan. Also carries `error`. */
+  verify?: boolean;
 }
 
 /**
@@ -44,7 +47,10 @@ export async function fetchRadar(
         : 'Could not reach the radar service. This is not an all-clear.',
     };
   }
-  const body = (await res.json().catch(() => null)) as (RadarResult & { error?: string }) | null;
+  const body = (await res.json().catch(() => null)) as (RadarResult & { error?: string; verify?: boolean }) | null;
+  if (res.status === 403 && body?.verify === true) {
+    return { ...empty, verify: true, error: body.error ?? 'Verify you are human to load fire data. This is not an all-clear.' };
+  }
   if (!res.ok || !body || !Array.isArray(body.hotspots)) {
     return { ...empty, error: body?.error ?? `Radar service responded ${res.status}. This is not an all-clear.` };
   }
@@ -73,7 +79,7 @@ export async function demoRadar(region: Region, mask?: LandCoverMask): Promise<P
 const IS_DEMO =
   !!import.meta.env?.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo');
 
-export type RadarStatus = 'loading' | 'ready' | 'empty' | 'error';
+export type RadarStatus = 'loading' | 'ready' | 'empty' | 'error' | 'verify';
 
 export function App() {
   const [region, setRegion] = useState<Region>('punjab');
@@ -102,6 +108,11 @@ export function App() {
       const result = IS_DEMO ? await demoRadar(targetRegion) : await fetchRadar(targetRegion);
       if (scan !== latestScan.current) return;
 
+      if (result.verify) {
+        setStatus('verify');
+        return;
+      }
+
       if (result.error) {
         setErrorMessage(result.error);
         setStatus('error');
@@ -128,6 +139,11 @@ export function App() {
   useEffect(() => {
     executePipeline(region);
   }, [region, executePipeline]);
+
+  // Stable across renders, so the human check's effect does not re-render the widget.
+  const regionRef = useRef(region);
+  regionRef.current = region;
+  const retryScan = useCallback(() => executePipeline(regionRef.current), [executePipeline]);
 
   const selectedClassification = selected ? classifications[selected.id] : undefined;
   const selectedPlume = selected ? plumes[selected.id] : undefined;
@@ -167,6 +183,8 @@ export function App() {
           React.createElement('span', { className: 'spinner-icon', 'aria-hidden': 'true' }),
           React.createElement('span', null, progressMsg)
         ),
+
+      status === 'verify' && React.createElement(HumanCheck, { onVerified: retryScan }),
 
       status === 'empty' &&
         React.createElement(

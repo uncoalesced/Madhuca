@@ -7,4 +7,6 @@ export default defineConfig({
   // Pre-bundling moves the module into .vite/deps without the worker, so the worker
   // 404s and no tiles ever load. Serve it from node_modules as-is instead.
   optimizeDeps: { exclude: ['maplibre-gl'] },
+  // `npm run dev` talks to the Worker under `wrangler dev` (worker/), same path as production.
+  server: { proxy: { '/api': 'http://localhost:8787' } },
 });

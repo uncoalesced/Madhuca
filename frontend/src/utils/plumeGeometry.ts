@@ -117,6 +117,20 @@ export function bearingToCompass(bearingDeg: number): string {
   return match ?? 'North';
 }
 
+const LOCAL_COMPASS: Record<string, readonly string[]> = {
+  hi: ['उत्तर', 'उत्तर-पूर्व', 'पूर्व', 'दक्षिण-पूर्व', 'दक्षिण', 'दक्षिण-पश्चिम', 'पश्चिम', 'उत्तर-पश्चिम'],
+  pa: ['ਉੱਤਰ', 'ਉੱਤਰ-ਪੂਰਬ', 'ਪੂਰਬ', 'ਦੱਖਣ-ਪੂਰਬ', 'ਦੱਖਣ', 'ਦੱਖਣ-ਪੱਛਮ', 'ਪੱਛਮ', 'ਉੱਤਰ-ਪੱਛਮ'],
+  te: ['ఉత్తరం', 'ఈశాన్యం', 'తూర్పు', 'ఆగ్నేయం', 'దక్షిణం', 'నైరుతి', 'పడమర', 'వాయువ్యం'],
+};
+
+/** 8-point compass word in the alert's language; English for anything else. */
+export function compassWord(bearingDeg: number, lang: string): string {
+  const words = LOCAL_COMPASS[lang];
+  if (!words) return bearingToCompass(bearingDeg);
+  const index = Math.round((((bearingDeg % 360) + 360) % 360) / 45) % 8;
+  return words[index] ?? words[0]!;
+}
+
 /** Generates a plain-language summary of plume travel for non-specialists. */
 export function getPlumeSummary(plume?: Plume): {
   directionText: string;

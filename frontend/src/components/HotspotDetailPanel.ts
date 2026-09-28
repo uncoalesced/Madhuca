@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { Classification, Hotspot, Plume, Region } from '@madhuca/logic';
 import { TtsButton } from './TtsButton.ts';
-import { bearingToCompass, distanceAndBearing, getPlumeSummary } from '../utils/plumeGeometry.ts';
+import { bearingToCompass, compassWord, distanceAndBearing, getPlumeSummary } from '../utils/plumeGeometry.ts';
 
 // District towns in and around the four regions, approximate centre coordinates.
 // ponytail: fixed list, swap for a gazetteer if village-level labels (MASTER.md 5.3) land.
@@ -49,6 +49,13 @@ export function getIntensityLabel(frp: number): { label: string; severity: 'low'
   return { label: 'Severe / Intense Heat (Major wildfire event)', severity: 'severe' };
 }
 
+const LOCAL_FALLBACK: Record<string, { downwind: string; vicinity: string }> = {
+  hi: { downwind: 'हवा की दिशा', vicinity: 'आसपास के क्षेत्र' },
+  pa: { downwind: 'ਹਵਾ ਦੀ ਦਿਸ਼ਾ', vicinity: 'ਨੇੜਲੇ ਇਲਾਕੇ' },
+  te: { downwind: 'గాలి దిశ', vicinity: 'సమీప ప్రాంతం' },
+  en: { downwind: 'downwind', vicinity: 'immediate vicinity' },
+};
+
 /** Generates clear, non-specialist guidance lines for farmers and local residents. */
 export function generatePlainLanguageAlert(
   hotspot: Hotspot,
@@ -57,8 +64,10 @@ export function generatePlainLanguageAlert(
   langCode: string = 'hi'
 ): string {
   const isWildfire = classification?.kind === 'likely-wildfire';
-  const compass = plume ? bearingToCompass(plume.bearingDeg) : 'downwind';
-  const dist = plume && plume.distanceKm > 0.5 ? `${plume.distanceKm.toFixed(1)} km` : 'immediate vicinity';
+  // Every word inside a Hindi/Punjabi/Telugu line stays in that language, compass included.
+  const local = LOCAL_FALLBACK[langCode] ?? LOCAL_FALLBACK.en!;
+  const compass = plume ? compassWord(plume.bearingDeg, langCode) : local.downwind;
+  const dist = plume && plume.distanceKm > 0.5 ? `${plume.distanceKm.toFixed(1)} km` : local.vicinity;
 
   if (langCode === 'pa') {
     if (isWildfire) {

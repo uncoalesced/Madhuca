@@ -102,3 +102,13 @@ test('REGION_BBOX covers valid bounds for all 4 launch regions', () => {
     assert.ok(south < north, `${r} south (${south}) must be < north (${north})`);
   }
 });
+
+test('3 hotspots with plumes produce 3 plume overlays, one per hotspot id', () => {
+  const third: Hotspot = { ...MOCK_HOTSPOTS[0]!, id: 'hs-3', lat: 30.9 };
+  const fc = createPlumeFeatureCollection(
+    [...MOCK_HOTSPOTS, third],
+    { ...MOCK_PLUMES, 'hs-3': { bearingDeg: 180, distanceKm: 5, spreadDeg: 20 } },
+    MOCK_CLASSIFICATIONS,
+  );
+  assert.deepEqual(fc.features.map((f) => f.id), ['hs-1', 'hs-2', 'hs-3']);
+});

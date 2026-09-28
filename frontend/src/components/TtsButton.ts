@@ -19,6 +19,25 @@ export const TTS_LANGUAGE_NAMES: Record<string, string> = {
   en: 'English',
 };
 
+/**
+ * Fallback when the Indic-TTS service is unreachable: the browser's own speech engine,
+ * but only if it has a voice for this language. Reading Hindi text with an English
+ * voice would be worse than silence. Returns false when no such voice exists.
+ */
+export function speakWithBrowser(text: string, langCode: string, onEnd: () => void): boolean {
+  const synth = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
+  const voice = synth?.getVoices().find((v) => v.lang.toLowerCase().startsWith(langCode));
+  if (!synth || !voice) return false;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.voice = voice;
+  utterance.lang = voice.lang;
+  utterance.onend = onEnd;
+  utterance.onerror = onEnd;
+  synth.cancel();
+  synth.speak(utterance);
+  return true;
+}
+
 // In-memory audio URL cache: key = `${lang}:${text}` -> Blob URL
 const audioBlobCache = new Map<string, string>();
 
@@ -99,9 +118,12 @@ export function TtsButton({ text, langCode = 'hi', endpoint }: TtsButtonProps) {
         // Non-DOM / SSR fallback
         setPlaybackState('idle');
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Audio synthesis failed';
-      setErrorMessage(msg);
+    } catch {
+      if (speakWithBrowser(text, langCode, () => setPlaybackState('idle'))) {
+        setPlaybackState('idle');
+        return;
+      }
+      setErrorMessage('voice unavailable, read the alert text');
       setPlaybackState('error');
     }
   };

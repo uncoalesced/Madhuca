@@ -4,6 +4,47 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-28 — Frontend on the Worker, leftovers, TTS checked live
+
+**Built.**
+- `frontend/src/App.ts`: `fetchRadar(region)` calls `GET /api/radar?region=`; any non-OK
+  response, network failure or malformed body becomes the error banner, never "Clean Skies".
+  The browser no longer holds a FIRMS key at all. `?demo` (dev only) is `demoRadar`.
+- `worker/wrangler.jsonc`: assets now `../frontend/dist` with SPA fallback and
+  `run_worker_first: ["/api/*"]`, so one Worker serves site + API. Run `npm run build` first.
+- `frontend/vite.config.ts`: `/api` proxied to `wrangler dev` on 8787.
+- Compass words in Hindi/Punjabi/Telugu alerts (`compassWord` in `utils/plumeGeometry.ts`),
+  plus the no-plume fallbacks, so an Indic line has no English words.
+- Favicon (`frontend/public/favicon.svg`).
+- TTS: on a failed Indic-TTS call, the browser voice for that language if one exists, else
+  "voice unavailable, read the alert text". Never an English voice reading Indic text.
+
+**Checks.**
+```
+npm run typecheck && npm run build && npm test --workspaces --if-present
+```
+Passing: logic 61/61, worker 5/5, frontend 30/30. New frontend tests: no-key 500 -> error;
+3 hotspots -> 3 results; zero -> empty without error; network failure / HTML body -> error;
+Indic alerts carry native compass words and no English; panel null -> open -> null -> open;
+3 hotspots -> 3 plume overlays.
+
+End to end, `npm run build`, then `npx --prefix worker wrangler dev --config worker/wrangler.jsonc`
+(key in gitignored `worker/.dev.vars`), open http://localhost:8787:
+- Without the key: `/api/radar?region=punjab` -> 500, banner "FIRMS key not configured, so no
+  fire data was fetched. This is not an all-clear."
+- With the key: 200, 2 hotspots, 2 plumes, 2 `likely-crop-burning`; 2 `.fire-marker` elements;
+  banner "2 Active Fire Hotspots in Punjab (2 Stubble Burning, 0 Wildfire)".
+- Marker click: Punjabi alert "... ਧੂੰਆਂ ਪੱਛਮ ਦਿਸ਼ਾ ਵੱਲ ਲਗਭਗ 2.1 km ..." with no Latin words.
+- TTS click against the live endpoint: button showed "Retry audio (voice unavailable, read the
+  alert text)"; this browser had no hi/pa/te voice.
+
+**Not covered.** Marker count is checked in a real browser, not in `node:test` (MapLibre needs a
+DOM). Real Indic audio has never played: `tts.indicnlp.org` does not resolve (Jammy's log,
+2026-09-26) and there is no replacement endpoint. Not deployed yet. No screenshot: the
+browser pane could not render while the app window was minimized.
+
+---
+
 ## 2026-09-26 — Hotspots clipped to the India border
 
 The first live FIRMS run (key now in gitignored `frontend/.env.local` and `.env`)

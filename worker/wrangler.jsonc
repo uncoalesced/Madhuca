@@ -6,9 +6,13 @@
   "name": "madhuca",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
+  // One origin serves both: the built frontend (and its land-cover masks, copied from
+  // frontend/public by vite build) as static assets, and /api/* through the Worker.
+  // Run `npm run build` first so ../frontend/dist exists.
   "assets": {
-    // Only the land-cover masks are needed here; the Worker reads them via env.ASSETS.
-    "directory": "../frontend/public",
-    "binding": "ASSETS"
+    "directory": "../frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
   }
 }

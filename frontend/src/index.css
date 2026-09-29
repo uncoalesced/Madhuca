@@ -562,3 +562,23 @@ body {
 .turnstile-widget:empty {
   display: none;
 }
+
+/* Fire-risk layer toggle (Telangana / AP only) */
+.risk-toggle {
+  background-color: var(--brand-green);
+  color: #ffffff;
+  border: none;
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.risk-note {
+  margin: 0;
+  max-width: 12rem;
+  font-weight: 400;
+  font-size: 0.72rem;
+  line-height: 1.3;
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import {
   REGION_BBOX,
@@ -8,6 +8,7 @@ import {
   type Region,
 } from '@madhuca/logic';
 import { plumeToGeoJSONPolygon } from '../utils/plumeGeometry.ts';
+import { riskGridToFeatureCollection, type RiskGridData } from '../utils/riskGeometry.ts';
 
 export interface MapViewProps {
   region: Region;
@@ -19,6 +20,8 @@ export interface MapViewProps {
   /** Currently selected hotspot id. */
   selectedId?: string | null;
   onSelect: (hotspot: Hotspot) => void;
+  /** URL of the region's fire-risk grid (frontend/public/risk/), when one exists. */
+  riskUrl?: string;
 }
 
 /** Determines high-contrast marker pin color based on fire classification. */
@@ -74,7 +77,11 @@ export function MapView({
   classifications,
   selectedId,
   onSelect,
+  riskUrl,
 }: MapViewProps) {
+  const [riskOn, setRiskOn] = useState(false);
+  const [riskGrid, setRiskGrid] = useState<RiskGridData | null>(null);
+  const [riskError, setRiskError] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -162,6 +169,65 @@ export function MapView({
     source?.setData(plumeDataRef.current);
   }, [hotspots, plumes, classifications]);
 
+  // A different region's grid (or none) replaces whatever was loaded.
+  useEffect(() => {
+    setRiskGrid(null);
+    setRiskError(false);
+    if (!riskUrl) setRiskOn(false);
+  }, [riskUrl]);
+
+  // Fetch the grid the first time the layer is switched on for this region.
+  useEffect(() => {
+    if (!riskOn || !riskUrl || riskGrid || riskError) return;
+    let live = true;
+    fetch(riskUrl)
+      .then((r) => (r.ok ? (r.json() as Promise<RiskGridData>) : Promise.reject(new Error(String(r.status)))))
+      .then((g) => live && setRiskGrid(g))
+      .catch(() => live && setRiskError(true));
+    return () => {
+      live = false;
+    };
+  }, [riskOn, riskUrl, riskGrid, riskError]);
+
+  // Draw or hide the risk layer. It sits below the plumes; markers are DOM, so above both.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const visible = riskOn && riskGrid !== null;
+      if (riskGrid) {
+        const data = riskGridToFeatureCollection(riskGrid);
+        const source = map.getSource('risk-source') as maplibregl.GeoJSONSource | undefined;
+        if (source) source.setData(data);
+        else {
+          map.addSource('risk-source', { type: 'geojson', data });
+          map.addLayer(
+            {
+              id: 'risk-fill',
+              type: 'fill',
+              source: 'risk-source',
+              paint: {
+                // p tops out around 0.14 (median 0.02) for a 14-day window, so the ramp is scaled to that.
+                'fill-color': [
+                  'interpolate', ['linear'], ['get', 'p'],
+                  0, '#fef9c3',
+                  0.02, '#fcd34d',
+                  0.05, '#f97316',
+                  0.1, '#b91c1c',
+                ],
+                'fill-opacity': 0.45,
+              },
+            },
+            map.getLayer('plumes-fill') ? 'plumes-fill' : undefined
+          );
+        }
+      }
+      if (map.getLayer('risk-fill')) map.setLayoutProperty('risk-fill', 'visibility', visible ? 'visible' : 'none');
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('idle', apply);
+  }, [riskOn, riskGrid]);
+
   // Update markers
   useEffect(() => {
     const map = mapRef.current;
@@ -227,7 +293,28 @@ export function MapView({
         { className: 'legend-item' },
         React.createElement('span', { className: 'legend-dot dot-wildfire' }),
         React.createElement('span', { className: 'legend-label' }, 'Likely Wildfire')
-      )
+      ),
+      riskUrl &&
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            className: 'risk-toggle',
+            'aria-pressed': riskOn,
+            onClick: () => setRiskOn((on) => !on),
+          },
+          riskOn ? 'Hide fire risk' : 'Show fire risk (14 days)'
+        ),
+      riskUrl && riskOn && riskError &&
+        React.createElement('p', { className: 'risk-note' }, 'Fire-risk layer failed to load.'),
+      riskUrl && riskOn && riskGrid &&
+        React.createElement(
+          'p',
+          { className: 'risk-note', title: riskGrid.model },
+          `Chance of any fire, crop burning included, ${riskGrid.validFrom} to ${riskGrid.validTo}. ` +
+            'Experimental statistical estimate. Low is not an all-clear. ' +
+            `Model: ${riskGrid.model.split(' (')[0]}.`
+        )
     )
   );
 }

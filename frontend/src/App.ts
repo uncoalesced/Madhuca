@@ -238,6 +238,8 @@ export function App() {
         classifications,
         selectedId: selected?.id,
         onSelect: setSelected,
+        // ponytail: only Telangana / AP has a grid (issue #21); list more here as ml/ publishes them.
+        riskUrl: region === 'telangana' ? '/risk/telangana.json' : undefined,
       }),
       React.createElement(HotspotDetailPanel, {
         hotspot: selected,

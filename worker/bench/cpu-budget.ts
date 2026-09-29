@@ -1,4 +1,4 @@
-// CPU cost of the Worker's per-region work, measured in Node on a dev machine.
+// CPU cost of the Worker's per-request work, measured in Node on a dev machine.
 //
 //   node worker/bench/cpu-budget.ts
 //
@@ -6,81 +6,83 @@
 // hardware, and the dashboard's CPU-time chart after deploy is the real check.
 // It does say which steps are anywhere near the 10ms free-tier budget.
 //
-// Per region it times, as wall time around synchronous code (process.cpuUsage ticks
-// in ~15.6ms steps on Windows, too coarse for this; sync JS on one thread is CPU-bound,
-// so wall time is an upper bound on CPU here):
-//   json_cold  the old path: JSON.parse of the mask plus the classifier's index build
-//   bin_cold   what the Worker does now: copy the prebuilt .bin into an ArrayBuffer
-//              (as res.arrayBuffer() does), decode it, classify the first hotspot
-//   warm       the dispersion + classification loop for 100 hotspots, index loaded
-// The cold costs are paid once per region per isolate; the mask is cached after.
-// Wind and FIRMS time is fetch wait, which the budget does not count.
+// Timed as wall time around synchronous code (process.cpuUsage ticks in ~15.6ms steps
+// on Windows, too coarse for this; sync JS on one thread is CPU-bound, so wall time is
+// an upper bound on CPU here):
+//   cold   copy states.bin and india.bin into ArrayBuffers (as res.arrayBuffer() does)
+//          and decode both: paid once per isolate
+//   parse  parseHotspotCsv on a synthetic all-India FIRMS day of N rows
+//   loop   per hotspot: state lookup + region filter, land-cover lookup, dispersion,
+//          classification. Wind and FIRMS time is fetch wait, which the budget does not count.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
   classifyHotspot,
   computeDispersion,
-  decodeMaskIndex,
+  decodeLandCoverGrid,
+  decodeStateGrid,
+  inRegion,
+  parseHotspotCsv,
   REGION_BBOX,
-  REGIONS,
-  type Hotspot,
-  type LandCoverMask,
 } from '@madhuca/logic';
 
-const HOTSPOTS = 100;
-const RUNS = 5;
+const RUNS = 7;
+const SIZES = [500, 1500, 3000];
 
-function cpuMs(run: () => void): number {
+const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
+const time = (run: () => void) => {
   const start = performance.now();
   run();
   return performance.now() - start;
-}
+};
 
-function median(xs: number[]): number {
-  const s = [...xs].sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)]!;
-}
+const pub = join(import.meta.dirname, '..', '..', 'frontend', 'public');
+const statesBin = readFileSync(join(pub, 'boundaries', 'states.bin'));
+const landBin = readFileSync(join(pub, 'landcover', 'india.bin'));
+const copy = (b: Buffer) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
 
-const dir = join(import.meta.dirname, '..', '..', 'frontend', 'public', 'landcover');
-console.log(`region     json_MB  json_cold_ms  bin_MB  bin_cold_ms  warm_${HOTSPOTS}_ms`);
-for (const region of REGIONS) {
-  const text = readFileSync(join(dir, `${region}.json`), 'utf8');
-  const bin = readFileSync(join(dir, `${region}.bin`));
-  const [w, s, e, n] = REGION_BBOX[region];
-  // Deterministic spread of points over the region box.
-  const hotspots: Hotspot[] = Array.from({ length: HOTSPOTS }, (_, i) => ({
-    id: `bench:${i}`,
-    lat: s + ((i * 37) % 100) / 100 * (n - s),
-    lon: w + ((i * 61) % 100) / 100 * (e - w),
-    frp: 5 + (i % 40),
-    confidence: 'n',
-    acquiredAt: '2026-10-20T08:00:00Z',
-    satellite: 'N',
-  }));
-  const wind = { speedMs: 3, directionDeg: 315, observedAt: '2026-10-20T08:00:00Z' };
+let stateAt!: ReturnType<typeof decodeStateGrid>;
+let landCoverAt!: ReturnType<typeof decodeLandCoverGrid>;
+const cold = median(
+  Array.from({ length: RUNS }, () =>
+    time(() => {
+      stateAt = decodeStateGrid(copy(statesBin));
+      landCoverAt = decodeLandCoverGrid(copy(landBin));
+    }),
+  ),
+);
+console.log(`cold: decode states.bin (${(statesBin.length / 1e6).toFixed(2)} MB) + india.bin (${(landBin.length / 1e6).toFixed(2)} MB): ${cold.toFixed(2)} ms, once per isolate`);
 
-  const jsonCold: number[] = [];
-  const binCold: number[] = [];
-  const warm: number[] = [];
-  for (let r = 0; r < RUNS; r++) {
-    jsonCold.push(cpuMs(() => { classifyHotspot(hotspots[0]!, JSON.parse(text) as LandCoverMask); }));
-    let mask!: LandCoverMask;
-    binCold.push(cpuMs(() => {
-      const bytes = bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer;
-      mask = decodeMaskIndex(region, bytes);
-      classifyHotspot(hotspots[0]!, mask);
-    }));
-    warm.push(cpuMs(() => {
-      for (const hs of hotspots) {
-        computeDispersion(hs, wind);
-        classifyHotspot(hs, mask);
-      }
-    }));
-  }
-  console.log(
-    `${region.padEnd(10)} ${(text.length / 1e6).toFixed(2).padStart(7)}  ${median(jsonCold).toFixed(1).padStart(12)}  ` +
-      `${(bin.byteLength / 1e6).toFixed(2).padStart(6)}  ${median(binCold).toFixed(2).padStart(11)}  ` +
-      `${median(warm).toFixed(2).padStart(11)}`,
+const HEADER =
+  'country_id,latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight';
+const [w, s, e, n] = REGION_BBOX.india;
+const wind = { speedMs: 3, directionDeg: 315, observedAt: '2026-10-20T08:00:00Z' };
+
+console.log('hotspots  parse_ms  loop_ms  total_ms  (budget 10 ms per request)');
+for (const size of SIZES) {
+  // Deterministic spread over the whole-India box, most of it abroad or at sea.
+  const csv = [
+    HEADER,
+    ...Array.from(
+      { length: size },
+      (_, i) =>
+        `IND,${(s + (((i * 37) % 1000) / 1000) * (n - s)).toFixed(4)},${(w + (((i * 61) % 1000) / 1000) * (e - w)).toFixed(4)},330.5,0.42,0.38,2026-10-20,0800,N,VIIRS,n,2.0NRT,295.1,${5 + (i % 40)},D`,
+    ),
+  ].join('\n');
+  let hotspots = parseHotspotCsv(csv);
+  const parse = median(Array.from({ length: RUNS }, () => time(() => (hotspots = parseHotspotCsv(csv)))));
+  const loop = median(
+    Array.from({ length: RUNS }, () =>
+      time(() => {
+        for (const hs of hotspots) {
+          const state = stateAt(hs.lon, hs.lat);
+          if (!inRegion('india', state)) continue;
+          computeDispersion(hs, wind);
+          classifyHotspot(hs, landCoverAt(hs.lon, hs.lat), state);
+        }
+      }),
+    ),
   );
+  console.log(`${String(size).padStart(8)}  ${parse.toFixed(2).padStart(8)}  ${loop.toFixed(2).padStart(7)}  ${(parse + loop).toFixed(2).padStart(8)}`);
 }

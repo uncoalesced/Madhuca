@@ -1,4 +1,4 @@
-import { decodeMaskIndex, REGIONS, runRadar, type LandCoverMask, type Region } from '@madhuca/logic';
+import { decodeLandCoverGrid, decodeStateGrid, REGIONS, runRadar, type Geo, type Region } from '@madhuca/logic';
 
 import { hasValidSession, issueSession, verifyTurnstile } from './turnstile.ts';
 
@@ -10,7 +10,7 @@ interface RateLimiter {
 /** Bindings from wrangler.jsonc. FIRMS_MAP_KEY is a Worker secret, never in the repo or the client bundle. */
 export interface Env {
   FIRMS_MAP_KEY?: string;
-  /** Static assets: the prebuilt land-cover indexes under /landcover/<region>.bin. */
+  /** Static assets: the prebuilt grids /boundaries/states.bin and /landcover/india.bin. */
   ASSETS: { fetch(input: Request | string): Promise<Response> };
   /** Per-IP rate limit on /api/radar (wrangler.jsonc "ratelimits"). 20/min, checked before any FIRMS work. */
   RADAR_LIMITER: RateLimiter;
@@ -21,24 +21,26 @@ export interface Env {
   TURNSTILE_SECRET?: string;
 }
 
-// The Worker reads the prebuilt index (worker/scripts/build-landcover-index.ts), not
-// the JSON mask: parsing the JSON and building the index on a cold isolate cost
-// 60-260ms of CPU per region against the 10ms budget, and loading the .bin is a few
-// typed-array views (worker/bench/cpu-budget.ts). Kept for the isolate's lifetime.
-const masks = new Map<Region, Promise<LandCoverMask>>();
+// Two prebuilt grids answer "which state" and "which land cover" for any point in
+// India (logic/src/geo.ts). Loading them is a fetch from static assets plus a few
+// typed-array views: no JSON parse and no index build on the request path. Kept for
+// the isolate's lifetime; a failed load is not cached, so the next request retries.
+let geo: Promise<Geo> | null = null;
 
-function loadMask(env: Env, region: Region, requestUrl: string): Promise<LandCoverMask> {
-  let mask = masks.get(region);
-  if (!mask) {
-    mask = env.ASSETS.fetch(new URL(`/landcover/${region}.bin`, requestUrl).toString()).then(async (res) => {
-      if (!res.ok) throw new Error(`land-cover mask for ${region} responded ${res.status}`);
-      return decodeMaskIndex(region, await res.arrayBuffer());
-    });
-    // A failed load is not cached, so the next request retries it.
-    mask.catch(() => masks.delete(region));
-    masks.set(region, mask);
+function loadGeo(env: Env, requestUrl: string): Promise<Geo> {
+  if (!geo) {
+    const bytes = async (path: string) => {
+      const res = await env.ASSETS.fetch(new URL(path, requestUrl).toString());
+      if (!res.ok) throw new Error(`${path} responded ${res.status}`);
+      return res.arrayBuffer();
+    };
+    geo = Promise.all([bytes('/boundaries/states.bin'), bytes('/landcover/india.bin')]).then(([states, land]) => ({
+      stateAt: decodeStateGrid(states),
+      landCoverAt: decodeLandCoverGrid(land),
+    }));
+    geo.catch(() => (geo = null));
   }
-  return mask;
+  return geo;
 }
 
 function error(status: number, message: string): Response {
@@ -119,16 +121,16 @@ export default {
       return error(500, 'FIRMS key not configured, so no fire data was fetched. This is not an all-clear.');
     }
 
-    let mask: LandCoverMask;
+    let grids: Geo;
     try {
-      mask = await loadMask(env, region, request.url);
+      grids = await loadGeo(env, request.url);
     } catch (err) {
-      // Without the mask every fire would read as 'other'; fail loudly instead.
-      return error(500, err instanceof Error ? err.message : 'land-cover mask unavailable');
+      // Without the grids no fire can be placed in a state or classified; fail loudly.
+      return error(500, err instanceof Error ? err.message : 'state and land-cover grids unavailable');
     }
 
     try {
-      const result = await runRadar(region, env.FIRMS_MAP_KEY, mask);
+      const result = await runRadar(region, env.FIRMS_MAP_KEY, grids);
       return Response.json(result, { headers: { 'cache-control': 'no-store' } });
     } catch (err) {
       // fetchHotspots never puts its URL (which carries the key) in an error message.

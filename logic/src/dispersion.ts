@@ -29,6 +29,8 @@ export function computeDispersion(hotspot: Hotspot, wind: Wind | null): Plume {
       bearingDeg,
       distanceKm,
       spreadDeg: 180, // Full radial dispersion
+      // Calm is a measured wind; missing wind has no speed at all (Plume.windSpeedMs).
+      ...(wind && Number.isFinite(wind.speedMs) ? { windSpeedMs: wind.speedMs } : {}),
     };
   }
 
@@ -44,6 +46,7 @@ export function computeDispersion(hotspot: Hotspot, wind: Wind | null): Plume {
     bearingDeg,
     distanceKm,
     spreadDeg,
+    windSpeedMs: wind.speedMs,
   };
 }
 

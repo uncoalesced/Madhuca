@@ -4,6 +4,60 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-29 — Region pivot: North / South / West / East / All India (#37)
+
+Branch `feat/region-pivot`. Contract #37 (REGIONS, optional `Plume.windSpeedMs`),
+acked by Jammy and Rahul per Joel.
+
+- Zones are whole states (`ZONE_STATES`, `logic/src/geo.ts`). FIRMS is queried by the
+  zone box, then `runRadar` keeps only fires whose state is in the zone, looked up in
+  `boundaries/states.bin` (0.001 deg runs per row from the unsimplified DataMeet rings,
+  written by `pipeline/boundaries.mjs`). `india-border.ts` is gone.
+- Classification reads land cover from the national `landcover/india.bin`; the
+  stubble rule keys on the state (Punjab, Haryana, Delhi, UP, Bihar). The per-region
+  polygon masks, their index code, build script and ~47 MB of masks are deleted.
+- Wind batched 100 locations per Open-Meteo request on 0.5 degree cells;
+  `computeDispersion` sets `windSpeedMs`, which turns on the spread haze.
+- `/api/radar` returns `states`; the panel opens in that state's language and uses a
+  national town list (`pipeline/towns.mjs`, 231 places).
+
+### How to re-run the checks
+
+```bash
+npm run typecheck && npm run build && npm test
+node pipeline/boundaries.mjs /tmp/ne_ind.geojson /tmp/Admin2
+node worker/bench/cpu-budget.ts
+```
+
+Passing looks like (real output):
+
+```
+ok  states.bin agrees on every known point, incl. both sides of the Punjab border
+wrote frontend/public/boundaries/states.bin: 30000x32000 at 0.001 deg, 364710 runs, 1.22 MB
+
+cold: decode states.bin (1.22 MB) + india.bin (9.60 MB): 1.77 ms, once per isolate
+hotspots  parse_ms  loop_ms  total_ms  (budget 10 ms per request)
+     500      0.69     0.17      0.86
+    1500      1.35     0.19      1.54
+    3000      3.60     0.33      3.93
+```
+
+`npm test`: logic 54/54, worker 13/13, frontend 55/55.
+
+Live `wrangler dev`, real FIRMS and wind: north 13 fires (Punjab 10, UP 2, Haryana 1),
+south 18, west 13, east 46, india 90 = the sum of the four, every fire with wind speed.
+East India wildfire in Arunachal: red spread bands heading west and grey dotted smoke
+cones drawn; panel opened in English. Five even tabs fit at 375 px.
+
+### What this does not cover
+
+- Only Telangana / AP has a risk grid; it shows on South and All India with its coverage
+  stated. Other zones need an `ml-risk` run.
+- Parse cost grows with fire count: at peak stubble season (5000+ fires a day) an
+  All India scan may approach the 10 ms budget. Check the Workers CPU chart after deploy.
+- Open-Meteo counts each location as a call: a busy All India scan uses a few hundred of
+  the 10,000 daily.
+
 ## 2026-09-29 — Indic voice, India's boundary, overlays, clipped risk, farmland (#38)
 
 Branch `feat/india-map-overhaul`. From my review of the live site. Region pivot and

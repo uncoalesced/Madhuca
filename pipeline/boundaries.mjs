@@ -243,3 +243,111 @@ const write = (name, fc) => {
 write('borders.json', { type: 'FeatureCollection', features: borderFeatures });
 write('state-lines.json', { type: 'FeatureCollection', features: stateLines });
 write('states.json', { type: 'FeatureCollection', features: states });
+
+// ---- states.bin: which state every point is in, for the Worker (logic/src/geo.ts).
+// A grid at GRID_RES stored as runs per row, from the UNsimplified rings: this is the
+// India-border filter for FIRMS rows, and 0.005 deg once put a real fire 500 m from
+// the Punjab border on the wrong side. Lookup is a binary search in one row.
+const GRID = { west: 68, north: 38, east: 98, south: 6 };
+const GRID_RES = 0.001; // ~110 m
+const cols = Math.round((GRID.east - GRID.west) / GRID_RES);
+const rows = Math.round((GRID.north - GRID.south) / GRID_RES);
+
+const allEdges = [];
+shapes.forEach((rings, sid) => {
+  for (const ring of rings)
+    for (let i = 1; i < ring.length; i++) {
+      const [x0, y0] = ring[i - 1];
+      const [x1, y1] = ring[i];
+      if (y0 !== y1) allEdges.push({ x0, y0, x1, y1, sid, top: Math.max(y0, y1), bottom: Math.min(y0, y1) });
+    }
+});
+allEdges.sort((a, b) => b.top - a.top);
+
+const rowStart = new Uint32Array(rows + 1);
+const runStarts = [];
+const runValues = [];
+let active = [];
+let next = 0;
+for (let r = 0; r < rows; r++) {
+  const lat = GRID.north - (r + 0.5) * GRID_RES;
+  while (next < allEdges.length && allEdges[next].top > lat) active.push(allEdges[next++]);
+  active = active.filter((e) => e.bottom <= lat);
+  // Even-odd crossings per state, paired into [from, to] column spans.
+  const crossings = [];
+  for (const e of active)
+    if (e.y0 > lat !== e.y1 > lat) crossings.push([e.sid, e.x0 + ((lat - e.y0) * (e.x1 - e.x0)) / (e.y1 - e.y0)]);
+  crossings.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const spans = [];
+  for (let i = 0; i + 1 < crossings.length; i += 2) {
+    if (crossings[i][0] !== crossings[i + 1][0]) throw new Error(`odd crossing count for ${names[crossings[i][0]]} at row ${r}`);
+    const c0 = Math.ceil((crossings[i][1] - GRID.west) / GRID_RES - 0.5);
+    const c1 = Math.floor((crossings[i + 1][1] - GRID.west) / GRID_RES - 0.5);
+    if (c1 >= c0 && c1 >= 0 && c0 < cols) spans.push([Math.max(c0, 0), Math.min(c1, cols - 1), crossings[i][0] + 1]);
+  }
+  spans.sort((a, b) => a[0] - b[0]);
+  // Runs: a value starts at a column and holds until the next start. 0 = outside India.
+  let lastEnd = -1;
+  let lastValue = 0;
+  const push = (start, value) => {
+    if (value === lastValue) return;
+    runStarts.push(start);
+    runValues.push(value);
+    lastValue = value;
+  };
+  for (const [c0, c1, v] of spans) {
+    const from = Math.max(c0, lastEnd + 1); // a sliver overlap goes to the earlier span
+    if (from > c1) continue;
+    if (from > lastEnd + 1) push(lastEnd + 1, 0);
+    push(from, v);
+    lastEnd = c1;
+  }
+  if (lastEnd + 1 < cols) push(lastEnd + 1, 0);
+  // Each row starts from 'outside'; the lookup treats "no run at or before col" as 0.
+  lastValue = 0;
+  rowStart[r + 1] = runStarts.length;
+}
+
+const nameBytes = Buffer.from(names.join('\n'), 'utf8');
+const header = Buffer.alloc(48);
+header.write('MST1', 0, 'ascii');
+header.writeUInt32LE(1, 4);
+header.writeDoubleLE(GRID.west, 8);
+header.writeDoubleLE(GRID.north, 16);
+header.writeDoubleLE(GRID_RES, 24);
+header.writeUInt32LE(cols, 32);
+header.writeUInt32LE(rows, 36);
+header.writeUInt32LE(runStarts.length, 40);
+header.writeUInt32LE(nameBytes.length, 44);
+const namePad = Buffer.alloc((4 - (nameBytes.length % 4)) % 4);
+const binParts = [
+  header,
+  nameBytes,
+  namePad,
+  Buffer.from(rowStart.buffer),
+  Buffer.from(Uint16Array.from(runStarts).buffer),
+  Buffer.from(Uint8Array.from(runValues).buffer),
+];
+const bin = Buffer.concat(binParts);
+writeFileSync(new URL('states.bin', dir), bin);
+console.log(`wrote frontend/public/boundaries/states.bin: ${cols}x${rows} at ${GRID_RES} deg, ${runStarts.length} runs, ${(bin.length / 1e6).toFixed(2)} MB`);
+
+// Same known answers against the grid, plus points either side of the Punjab border.
+function binState(lon, lat) {
+  const r = Math.floor((GRID.north - lat) / GRID_RES);
+  const c = Math.floor((lon - GRID.west) / GRID_RES);
+  let value = 0;
+  for (let k = rowStart[r]; k < rowStart[r + 1] && runStarts[k] <= c; k++) value = runValues[k];
+  return value ? names[value - 1] : undefined;
+}
+for (const [label, lon, lat, want] of [
+  ...expect,
+  ['Attari (Indian side of Wagah)', 74.585, 31.605, 'Punjab'],
+  ['Wagah (Pakistani side)', 74.57, 31.6045, undefined],
+  ['Ferozepur', 74.61, 30.93, 'Punjab'],
+  ['Kasur (Pakistan)', 74.45, 31.12, undefined],
+]) {
+  const got = binState(lon, lat);
+  if (got !== want) throw new Error(`states.bin ${label}: ${got}, expected ${want}`);
+}
+console.log('ok  states.bin agrees on every known point, incl. both sides of the Punjab border');

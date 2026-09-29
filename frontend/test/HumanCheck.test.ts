@@ -10,7 +10,7 @@ const respond = (status: number, body?: unknown) =>
 
 test('a 403 asking for verification becomes a verify result, never an empty all-clear', async () => {
   const result = await fetchRadar(
-    'punjab',
+    'north',
     respond(403, { error: 'Verify you are human to load fire data. This is not an all-clear.', verify: true }),
   );
   assert.equal(result.verify, true);
@@ -19,7 +19,7 @@ test('a 403 asking for verification becomes a verify result, never an empty all-
 });
 
 test('a plain 403 without the verify flag is still an ordinary error', async () => {
-  const result = await fetchRadar('punjab', respond(403, { error: 'Forbidden' }));
+  const result = await fetchRadar('north', respond(403, { error: 'Forbidden' }));
   assert.equal(result.verify, undefined);
   assert.equal(result.error, 'Forbidden');
 });

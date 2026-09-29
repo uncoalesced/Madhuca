@@ -8,13 +8,14 @@ export interface RegionSelectorProps {
 
 /** Human-readable region labels with localized script indicators for accessibility. */
 export const REGION_LABELS: Record<Region, { name: string; native: string }> = {
-  punjab: { name: 'Punjab', native: 'ਪੰਜਾਬ' },
-  bihar: { name: 'Bihar', native: 'बिहार' },
-  delhi: { name: 'Delhi', native: 'दिल्ली' },
-  telangana: { name: 'Telangana / AP', native: 'తెలంగాణ / ఏపీ' },
+  north: { name: 'North India', native: 'उत्तर भारत' },
+  south: { name: 'South India', native: 'దక్షిణ భారతం' },
+  west: { name: 'West India', native: 'पश्चिम भारत' },
+  east: { name: 'East India', native: 'पूर्व भारत' },
+  india: { name: 'All India', native: 'संपूर्ण भारत' },
 };
 
-/** Toggle between the four v1 regions. Changing region re-triggers the fetch cycle. */
+/** Toggle between the five regions, All India last. Changing region re-triggers the fetch cycle. */
 export function RegionSelector({ region, onChange }: RegionSelectorProps) {
   const tabs = REGIONS.map((r) => {
     const isSelected = r === region;

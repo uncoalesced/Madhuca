@@ -6,12 +6,29 @@ import type { Hotspot, Region } from '@madhuca/logic';
  * production build never reads them (see App.ts). Points are placed on known
  * cropland and forest so both classifications show up.
  */
+const NORTH: ReadonlyArray<readonly [number, number, number]> = [
+  // [lat, lon, frp MW]: Punjab cropland, Haryana cropland, Uttarakhand forest
+  [30.9, 75.7, 45], [30.35, 76.3, 12], [29.4, 76.4, 28], [30.1, 78.9, 160],
+];
+const SOUTH: ReadonlyArray<readonly [number, number, number]> = [
+  // Telangana, Nallamala forest, Karnataka, Western Ghats
+  [18.1, 79.4, 35], [16.2, 78.6, 120], [15.3, 76.4, 22], [11.7, 76.1, 60],
+];
+const WEST: ReadonlyArray<readonly [number, number, number]> = [
+  // Madhya Pradesh cropland, Maharashtra, Gujarat
+  [23.2, 77.4, 30], [20.1, 76.2, 18], [22.3, 72.9, 40],
+];
+const EAST: ReadonlyArray<readonly [number, number, number]> = [
+  // Bihar cropland, Similipal forest (Odisha), Assam
+  [25.8, 85.4, 30], [21.75, 86.35, 95], [26.3, 92.7, 25],
+];
+
 const POINTS: Record<Region, ReadonlyArray<readonly [number, number, number]>> = {
-  // [lat, lon, frp MW]
-  punjab: [[30.9, 75.7, 45], [30.35, 76.3, 12], [31.55, 74.95, 160], [32.35, 75.75, 70]],
-  bihar: [[25.8, 85.4, 30], [26.3, 86.1, 18], [27.3, 84.1, 95]],
-  delhi: [[28.75, 77.05, 22], [28.55, 77.2, 9]],
-  telangana: [[18.1, 79.4, 35], [16.2, 78.7, 120], [18.9, 79.95, 60], [15.9, 78.9, 45]],
+  north: NORTH,
+  south: SOUTH,
+  west: WEST,
+  east: EAST,
+  india: [...NORTH, ...SOUTH, ...WEST, ...EAST],
 };
 
 export function demoHotspots(region: Region): Hotspot[] {

@@ -3,29 +3,10 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { App, demoRadar, fetchRadar } from '../src/App.ts';
-import type { Hotspot, LandCoverMask } from '@madhuca/logic';
+import type { Geo, Hotspot } from '@madhuca/logic';
 
-const MOCK_MASK: LandCoverMask = {
-  region: 'punjab',
-  features: [
-    {
-      type: 'Feature',
-      properties: { landCover: 'cropland' },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [
-          [
-            [75.0, 30.0],
-            [76.0, 30.0],
-            [76.0, 31.0],
-            [75.0, 31.0],
-            [75.0, 30.0],
-          ],
-        ],
-      },
-    },
-  ],
-};
+/** Every point cropland in Punjab: stands in for the real grids. */
+const MOCK_GEO: Geo = { stateAt: () => 'Punjab', landCoverAt: () => 'cropland' };
 
 const MOCK_HOTSPOTS: Hotspot[] = [
   {
@@ -53,7 +34,7 @@ const json = (status: number, body: unknown) =>
 
 test('fetchRadar with no FIRMS key on the Worker is an error, never an empty all-clear', async () => {
   const result = await fetchRadar(
-    'punjab',
+    'north',
     json(500, { error: 'FIRMS key not configured, so no fire data was fetched. This is not an all-clear.' }),
   );
   assert.equal(result.hotspots.length, 0);
@@ -71,8 +52,8 @@ test('fetchRadar with 3 hotspots returns 3 hotspots, plumes and classifications'
     asked = url;
     return new Response(JSON.stringify({ hotspots: three, plumes, classifications }));
   }) as unknown as typeof fetch;
-  const result = await fetchRadar('punjab', fake);
-  assert.equal(asked, '/api/radar?region=punjab');
+  const result = await fetchRadar('north', fake);
+  assert.equal(asked, '/api/radar?region=north');
   assert.equal(result.error, undefined);
   assert.equal(result.hotspots.length, 3);
   assert.equal(Object.keys(result.plumes).length, 3);
@@ -80,24 +61,25 @@ test('fetchRadar with 3 hotspots returns 3 hotspots, plumes and classifications'
 });
 
 test('fetchRadar with zero hotspots is a real empty result without error', async () => {
-  const result = await fetchRadar('bihar', json(200, { hotspots: [], plumes: {}, classifications: {} }));
+  const result = await fetchRadar('east', json(200, { hotspots: [], plumes: {}, classifications: {} }));
   assert.equal(result.hotspots.length, 0);
   assert.equal(result.error, undefined);
 });
 
 test('fetchRadar on a network failure or garbage body is an error', async () => {
   const down = (async () => { throw new TypeError('fetch failed'); }) as unknown as typeof fetch;
-  assert.match((await fetchRadar('delhi', down)).error ?? '', /not an all-clear/);
+  assert.match((await fetchRadar('west', down)).error ?? '', /not an all-clear/);
   const html = (async () => new Response('<html>', { status: 200 })) as unknown as typeof fetch;
-  assert.match((await fetchRadar('delhi', html)).error ?? '', /not an all-clear/);
+  assert.match((await fetchRadar('west', html)).error ?? '', /not an all-clear/);
 });
 
-test('demoRadar classifies fake hotspots against the given mask', async () => {
-  const result = await demoRadar('punjab', MOCK_MASK);
+test('demoRadar classifies fake hotspots against the given grids, with their state', async () => {
+  const result = await demoRadar('north', MOCK_GEO);
   assert.ok(result.hotspots.length > 0);
   for (const hs of result.hotspots) {
     assert.ok(result.plumes[hs.id]);
-    assert.ok(result.classifications[hs.id]);
+    assert.equal(result.classifications[hs.id]!.landCover, 'cropland');
+    assert.equal(result.states[hs.id], 'Punjab');
   }
 });
 
@@ -105,10 +87,8 @@ test('App renders brand header, region selector, and mandatory ESA attribution f
   const html = renderToStaticMarkup(React.createElement(App));
 
   assert.ok(html.includes('Madhuca'), 'Expected brand name in markup');
-  assert.ok(html.includes('Punjab'), 'Expected Punjab in region tabs');
-  assert.ok(html.includes('Bihar'), 'Expected Bihar in region tabs');
-  assert.ok(html.includes('Delhi'), 'Expected Delhi in region tabs');
-  assert.ok(html.includes('Telangana'), 'Expected Telangana in region tabs');
+  const tabs = [...html.matchAll(/class="region-tab-name">([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(tabs, ['North India', 'South India', 'West India', 'East India', 'All India'], 'five tabs, All India last');
   assert.ok(
     html.includes('© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data'),
     'Expected mandatory CC-BY 4.0 ESA WorldCover attribution'
@@ -124,7 +104,7 @@ test('fetchRadar on a request that never answers resolves to a timeout error, no
     new Promise<Response>((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
     })) as typeof fetch;
-  const result = await fetchRadar('telangana', hang, 50);
+  const result = await fetchRadar('south', hang, 50);
   assert.match(result.error ?? '', /timed out.*not an all-clear/);
   assert.equal(result.hotspots.length, 0);
 });

@@ -12,8 +12,9 @@ const PUBLIC = join(import.meta.dirname, '..', '..', 'frontend', 'public');
 
 const HEADER =
   'country_id,latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight';
-// Ludhiana farmland (inside a cropland polygon in the published punjab.json), in stubble season.
-const LUDHIANA_CROPLAND = `IND,30.8,75.6,330.5,0.42,0.38,2026-10-20,0800,N,VIIRS,n,2.0NRT,295.1,9.0,D`;
+// Ludhiana farmland (cropland in the published india.bin), in stubble season, and Lahore.
+const LUDHIANA_CROPLAND = `IND,30.7,75.6,330.5,0.42,0.38,2026-10-20,0800,N,VIIRS,n,2.0NRT,295.1,9.0,D`;
+const LAHORE = `PAK,31.55,74.35,330.5,0.42,0.38,2026-10-20,0800,N,VIIRS,n,2.0NRT,295.1,9.0,D`;
 
 const WIND = { current: { time: '2026-10-20T08:00', interval: 900, wind_speed_10m: 4, wind_direction_10m: 315 } };
 
@@ -62,11 +63,25 @@ const sessionCookie = async () => (await issueSession(TURNSTILE_SECRET, Math.flo
 const get = async (path: string, env: Env) =>
   worker.fetch(new Request(`http://localhost${path}`, { headers: { cookie: await sessionCookie() } }), env);
 
-test('classifies a known Punjab cropland point against the prebuilt index read from static assets', async () => {
+test('missing grids are a 500, not a scan where every fire silently reads as other or abroad', async () => {
+  // First in the file: the grids are cached per isolate once a load succeeds.
+  const env = envWith('k');
+  env.ASSETS = { fetch: async () => new Response('not found', { status: 404 }) };
+  const { value: res } = await withStubbedFetch(
+    () => new Response(`${HEADER}
+${LUDHIANA_CROPLAND}
+`),
+    () => get('/api/radar?region=north', env),
+  );
+  assert.equal(res.status, 500);
+  assert.match(((await res.json()) as { error: string }).error, /responded 404/);
+});
+
+test('classifies a known Punjab cropland point against the grids read from static assets, and drops Lahore', async () => {
   const assetRequests: string[] = [];
   const { value: res } = await withStubbedFetch(
-    (url) => (url.startsWith('https://api.open-meteo.com/') ? Response.json(WIND) : new Response(`${HEADER}\n${LUDHIANA_CROPLAND}\n`)),
-    () => get('/api/radar?region=punjab', envWith('test-key', assetRequests)),
+    (url) => (url.startsWith('https://api.open-meteo.com/') ? Response.json(WIND) : new Response(`${HEADER}\n${LUDHIANA_CROPLAND}\n${LAHORE}\n`)),
+    () => get('/api/radar?region=north', envWith('test-key', assetRequests)),
   );
 
   assert.equal(res.status, 200);
@@ -74,19 +89,21 @@ test('classifies a known Punjab cropland point against the prebuilt index read f
     hotspots: { id: string }[];
     plumes: Record<string, { bearingDeg: number }>;
     classifications: Record<string, { kind: string; landCover: string }>;
+    states: Record<string, string>;
   };
   assert.equal(body.hotspots.length, 1);
   const id = body.hotspots[0]!.id;
   assert.equal(body.classifications[id]!.landCover, 'cropland');
   assert.equal(body.classifications[id]!.kind, 'likely-crop-burning');
   assert.equal(body.plumes[id]!.bearingDeg, 135);
-  assert.deepEqual(assetRequests, ['/landcover/punjab.bin']);
+  assert.equal(body.states[id], 'Punjab');
+  assert.deepEqual(assetRequests.sort(), ['/boundaries/states.bin', '/landcover/india.bin']);
 });
 
 test('a missing FIRMS key is a 500 error that says it is not an all-clear, and calls nothing', async () => {
   const { value: res, seen } = await withStubbedFetch(
     () => new Response('unexpected'),
-    () => get('/api/radar?region=delhi', envWith(undefined)),
+    () => get('/api/radar?region=west', envWith(undefined)),
   );
   assert.equal(res.status, 500);
   assert.match(((await res.json()) as { error: string }).error, /not an all-clear/);
@@ -96,7 +113,7 @@ test('a missing FIRMS key is a 500 error that says it is not an all-clear, and c
 test('a FIRMS failure is a 502, and the key does not appear in the response', async () => {
   const { value: res } = await withStubbedFetch(
     () => new Response('bad key', { status: 403, statusText: 'Forbidden' }),
-    () => get('/api/radar?region=delhi', envWith('secret-key-123')),
+    () => get('/api/radar?region=west', envWith('secret-key-123')),
   );
   assert.equal(res.status, 502);
   const text = await res.text();
@@ -116,7 +133,7 @@ test('a rate-limited request is a 429 saying it is not an all-clear, and FIRMS/w
   env.RADAR_LIMITER = { limit: async () => ({ success: false }) };
   const { value: res, seen } = await withStubbedFetch(
     () => new Response('unexpected'),
-    () => get('/api/radar?region=punjab', env),
+    () => get('/api/radar?region=north', env),
   );
   assert.equal(res.status, 429);
   assert.match(((await res.json()) as { error: string }).error, /not an all-clear/);
@@ -126,14 +143,3 @@ test('a rate-limited request is a 429 saying it is not an all-clear, and FIRMS/w
   assert.deepEqual(assetRequests, []);
 });
 
-test('a missing mask is a 500, not a scan where every fire silently reads as other', async () => {
-  const env = envWith('k');
-  env.ASSETS = { fetch: async () => new Response('not found', { status: 404 }) };
-  const { value: res } = await withStubbedFetch(
-    () => new Response(`${HEADER}\n${LUDHIANA_CROPLAND}\n`),
-    // Telangana: a region no earlier test has cached a mask for in this isolate.
-    () => get('/api/radar?region=telangana', env),
-  );
-  assert.equal(res.status, 500);
-  assert.match(((await res.json()) as { error: string }).error, /mask for telangana responded 404/);
-});

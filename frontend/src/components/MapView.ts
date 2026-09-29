@@ -15,7 +15,7 @@ import {
   plumeToGeoJSONPolygon,
   spreadWedges,
 } from '../utils/plumeGeometry.ts';
-import { riskGridToFeatureCollection, type RiskGridData } from '../utils/riskGeometry.ts';
+import { riskImageCoordinates, riskImageUrl, type RiskGridData } from '../utils/riskGeometry.ts';
 
 export interface MapViewProps {
   region: Region;
@@ -338,27 +338,21 @@ export function MapView({
     if (!map) return;
     const apply = () => {
       const visible = riskOn && riskGrid !== null;
-      if (riskGrid) {
-        const data = riskGridToFeatureCollection(riskGrid);
-        const source = map.getSource('risk-source') as maplibregl.GeoJSONSource | undefined;
-        if (source) source.setData(data);
+      if (riskGrid && riskUrl) {
+        // Colours are baked into the image by ml/render_risk.py, same ramp as before
+        // (p tops out around 0.14, median 0.02, for a 14-day window).
+        const url = riskImageUrl(riskUrl);
+        const coordinates = riskImageCoordinates(riskGrid);
+        const source = map.getSource('risk-source') as maplibregl.ImageSource | undefined;
+        if (source) source.updateImage({ url, coordinates });
         else {
-          map.addSource('risk-source', { type: 'geojson', data });
+          map.addSource('risk-source', { type: 'image', url, coordinates });
           map.addLayer(
             {
               id: 'risk-fill',
-              type: 'fill',
+              type: 'raster',
               source: 'risk-source',
-              paint: {
-                // p tops out around 0.14 (median 0.02) for a 14-day window, so the ramp is scaled to that.
-                'fill-color': [
-                  'interpolate', ['linear'], ['get', 'p'],
-                  0, '#F1F3F0',
-                  0.02, '#F19143',
-                  0.1, '#EF2D56',
-                ],
-                'fill-opacity': 0.45,
-              },
+              paint: { 'raster-opacity': 0.5, 'raster-resampling': 'linear', 'raster-fade-duration': 0 },
             },
             map.getLayer('plumes-fill') ? 'plumes-fill' : undefined
           );
@@ -368,7 +362,7 @@ export function MapView({
     };
     if (map.isStyleLoaded()) apply();
     else map.once('idle', apply);
-  }, [riskOn, riskGrid]);
+  }, [riskOn, riskGrid, riskUrl]);
 
   // Update markers
   useEffect(() => {

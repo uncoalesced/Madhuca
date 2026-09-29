@@ -1,41 +1,50 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { riskGridToFeatureCollection, type RiskGridData } from '../src/utils/riskGeometry.ts';
+import { readFileSync } from 'node:fs';
+import { inflateSync } from 'node:zlib';
+import { riskImageCoordinates, riskImageUrl, type RiskGridData } from '../src/utils/riskGeometry.ts';
 
-const GRID: RiskGridData = {
-  bbox: [76.7, 12.6, 76.9, 12.8],
-  cellDeg: 0.1,
-  cols: 2,
-  rows: 2,
-  // row 0 (south): [no data, p=0], row 1 (north): [p=0.5, p=1]
-  risk: [0, 1, 128, 255],
-  validFrom: '2026-09-29',
-  validTo: '2026-10-12',
-  model: 'test',
-};
-
-test('skips no-data cells only, keeps p=0 cells', () => {
-  const fc = riskGridToFeatureCollection(GRID);
-  assert.equal(fc.features.length, 3);
-  assert.deepEqual(fc.features.map((f) => f.properties?.p), [0, 127 / 254, 1]);
+test('image corners run clockwise from the top left of the grid box', () => {
+  assert.deepEqual(riskImageCoordinates({ bbox: [76.7, 12.6, 84.8, 19.95] }), [
+    [76.7, 19.95],
+    [84.8, 19.95],
+    [84.8, 12.6],
+    [76.7, 12.6],
+  ]);
+  assert.equal(riskImageUrl('/risk/telangana.json'), '/risk/telangana.png');
 });
 
-test('cells are placed row-major from the south-west corner', () => {
-  const fc = riskGridToFeatureCollection(GRID);
-  const ring = (i: number) => fc.features[i].geometry.coordinates[0];
-  // first kept cell is col 1, row 0
-  assert.ok(Math.abs(ring(0)[0][0] - 76.8) < 1e-9 && Math.abs(ring(0)[0][1] - 12.6) < 1e-9);
-  // last cell is col 1, row 1; its north-east corner is the bbox corner
-  const ne = ring(2)[2];
-  assert.ok(Math.abs(ne[0] - 76.9) < 1e-9 && Math.abs(ne[1] - 12.8) < 1e-9);
-  assert.equal(ring(2).length, 5);
-});
+/** Decode the RGBA PNG ml/render_risk.py writes (8-bit, colour type 6, filter 0 rows). */
+function readPng(path: URL) {
+  const buf = readFileSync(path);
+  const width = buf.readUInt32BE(16);
+  const height = buf.readUInt32BE(20);
+  const idat: Buffer[] = [];
+  for (let at = 8; at < buf.length; ) {
+    const len = buf.readUInt32BE(at);
+    if (buf.toString('ascii', at + 4, at + 8) === 'IDAT') idat.push(buf.subarray(at + 8, at + 8 + len));
+    at += 12 + len;
+  }
+  const raw = inflateSync(Buffer.concat(idat));
+  const alpha = (x: number, y: number) => raw[y * (width * 4 + 1) + 1 + x * 4 + 3]!;
+  return { width, height, alpha };
+}
 
-test('the published Telangana grid is consistent with its header', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const g = JSON.parse(await readFile(new URL('../public/risk/telangana.json', import.meta.url), 'utf8')) as RiskGridData;
-  assert.equal(g.risk.length, g.cols * g.rows);
-  assert.ok(g.risk.every((v) => Number.isInteger(v) && v >= 0 && v <= 255));
-  const fc = riskGridToFeatureCollection(g);
-  assert.equal(fc.features.length, g.risk.filter((v) => v > 0).length);
+test('the published Telangana / AP risk image stops at state lines and the coast', () => {
+  const grid = JSON.parse(readFileSync(new URL('../public/risk/telangana.json', import.meta.url), 'utf8')) as RiskGridData;
+  const png = readPng(new URL('../public/risk/telangana.png', import.meta.url));
+  const [w, s, e, n] = grid.bbox;
+  const merc = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+  // Rows are even in Web Mercator, as the MapLibre image source expects.
+  const at = (lon: number, lat: number) =>
+    png.alpha(
+      Math.floor(((lon - w) / (e - w)) * png.width),
+      Math.floor(((merc(n) - merc(lat)) / (merc(n) - merc(s))) * png.height),
+    );
+  assert.ok(at(79.27, 17.06) > 0, 'Nalgonda, Telangana: drawn');
+  assert.ok(at(79.99, 14.44) > 0, 'Nellore, AP: drawn');
+  assert.equal(at(77.59, 12.97), 0, 'Bengaluru, Karnataka: transparent');
+  assert.equal(at(80.27, 13.08), 0, 'Chennai, Tamil Nadu: transparent');
+  assert.equal(at(83.5, 15.5), 0, 'Bay of Bengal: transparent');
+  assert.equal(grid.risk.length, grid.cols * grid.rows);
 });

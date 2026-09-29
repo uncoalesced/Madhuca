@@ -31,11 +31,12 @@ The logic core is done; what's left is running it where the FIRMS key can stay s
 
 ### ML wildfire prediction (added 2026-09-28, issue #21; types in contract issue #20)
 
-- [ ] **Fire-risk forecast, Telangana / AP**. Partial, as of 29 Sept:
-  - Done: the offline model in `ml/`, held-out ROC-AUC 0.870 against 0.849 for climatology alone, published as `frontend/public/risk/telangana.json` (12.6 KB).
-  - Still to do: `logic/src/risk.ts` and its `risk.test.ts`. Those need `RiskGrid` in `types.ts`, which waits on Joel agreeing on #20.
-- [ ] **Learned crop-burning vs wildfire classifier**. Stub plus roadmap. Blocked on #20 (`ClassifierWeights`), and on where the labels come from, which is still open.
-- [ ] **Spread prediction stub** (`logic/src/spread.ts`). Blocked on #20 (`SpreadEstimate`).
+- [x] **Fire-risk forecast, Telangana / AP**. *(29 Sept.)*
+  - The offline model in `ml/` scores held-out ROC-AUC 0.870, against 0.849 for climatology alone.
+  - It is published as `frontend/public/risk/telangana.json` (12.6 KB).
+  - `logic/src/risk.ts` (`parseRiskGrid`) and `logic/test/risk.test.ts` validate that file as a `RiskGrid`, and Joel's map layer draws it.
+- [x] **Learned crop-burning vs wildfire classifier: plan only.** Scoped by Joel on #20: `classifyHotspot` keeps its rules and no labels are invented. The `ClassifierWeights` type exists, and the plan is written in `ml/README.md` ("Model 2"). **No model is built.** The blocker is labels (Van Agni matching).
+- [x] **Spread prediction stub** (`logic/src/spread.ts`, `estimateSpread`). It says "not estimated" (0 km over 0 h) and never throws on missing wind; `logic/test/spread.test.ts` checks both. Not a spread model.
 
 ## Definition of done (per task — this matters, read it)
 

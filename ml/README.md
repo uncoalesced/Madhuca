@@ -50,3 +50,17 @@ Filters:
 - The model is trained on forecast dates in 2020-2023 and scored on 2024 to mid-2026, a period it never saw.
 - ROC-AUC and PR-AUC are printed next to two baselines, climatology alone and last-30-days alone, so the model is only credited with what it adds over simple rules.
 - The numbers from each run are logged in `docs/log/jammy.md`.
+
+## Model 2: learned crop-burning vs wildfire classifier (plan, not built)
+
+Decided on issue #20 (2026-09-29): for 30 Sept this is a plan only. `classifyHotspot` keeps its rule-based path (land cover, stubble-belt state, season, FRP), and no labels are invented. What exists is the `ClassifierWeights` type in `logic/src/types.ts`, which a trained model will be exported as.
+
+The blocker is labels. There is no ground truth for "this detection was a wildfire" versus "this was crop burning", and training on the current rules' own output would only teach a model to copy them. The plan:
+
+1. **Labels.** Match FIRMS detections to Forest Survey of India Van Agni forest-fire alerts (same place and day) as wildfire positives. Negatives would be cropland detections in stubble-belt states during Oct-Nov and Apr-May that no Van Agni alert matches. That is still an assumption, and it would be recorded in `labelSource`. First check that the alerts can be obtained in bulk and what their terms allow.
+2. **Model.** Logistic regression over a handful of per-detection features the Worker already has: FRP, land cover, month, day/night, and the cell's fire history from the risk features. It would be exported as `ClassifierWeights` (a few numbers), so evaluating it in `classifyHotspot` stays plain arithmetic inside the 10ms budget.
+3. **Evaluation.** Hold out a later season, report precision and recall for each class next to the current rules, and ship only if it beats them. The rules stay the fallback whenever weights are missing, and a fire is never hidden whichever path tags it.
+
+## Model 3: spread prediction (scaffold)
+
+`estimateSpread` in `logic/src/spread.ts` is a stub. It returns distance 0 over 0 hours, meaning "not estimated", with the bearing downwind when wind is usable. It never throws on missing or calm wind. It is not a validated spread model, and nothing displays it.

@@ -328,6 +328,11 @@ button:focus-visible {
   background: linear-gradient(90deg, color-mix(in srgb, var(--wildfire) 55%, transparent), color-mix(in srgb, var(--wildfire) 12%, transparent));
 }
 
+.swatch-farmland {
+  background-color: color-mix(in srgb, #C9B03A 55%, transparent);
+  vertical-align: -1px;
+}
+
 .swatch-smoke {
   background-color: color-mix(in srgb, var(--smoke) 18%, transparent);
   border: 2px dotted var(--smoke);

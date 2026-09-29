@@ -7,6 +7,7 @@ import {
   getMarkerColor,
   createPlumeFeatureCollection,
   createFireFeatureCollection,
+  FARMLAND_IMAGE,
 } from '../src/components/MapView.ts';
 import { distanceAndBearing, fireSpreadKm } from '../src/utils/plumeGeometry.ts';
 import { REGION_BBOX, type Classification, type Hotspot, type Plume } from '@madhuca/logic';
@@ -149,6 +150,20 @@ test('legend explains fire, possible spread and smoke', () => {
   assert.match(html, /Possible spread \(3 h\)/);
   assert.match(html, /not a fire-spread model/);
   assert.match(html, /Smoke drift/);
+});
+
+test('farmland toggle is always offered, and its image box matches the national land-cover grid', async () => {
+  const html = renderToStaticMarkup(React.createElement(MapView, { region: 'delhi', hotspots: [], onSelect: () => {} }));
+  assert.match(html, /Show farmland/);
+  const { readFileSync } = await import('node:fs');
+  const bin = readFileSync(new URL('../public/landcover/india.bin', import.meta.url));
+  assert.equal(bin.toString('ascii', 0, 4), 'MLC1');
+  const [west, north, res] = [bin.readDoubleLE(8), bin.readDoubleLE(16), bin.readDoubleLE(24)];
+  const [cols, rows] = [bin.readUInt32LE(32), bin.readUInt32LE(36)];
+  assert.deepEqual([...FARMLAND_IMAGE.bbox], [west, north - rows * res, west + cols * res, north]);
+  assert.equal(bin.length, 40 + Math.ceil((cols * rows) / 4));
+  const png = readFileSync(new URL('../public/landcover/farmland.png', import.meta.url));
+  assert.ok(png.length < 1_000_000, `farmland.png is ${png.length} bytes; phones download it on toggle`);
 });
 
 test('risk toggle renders only when the region has a risk grid', () => {

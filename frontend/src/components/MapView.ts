@@ -15,7 +15,7 @@ import {
   plumeToGeoJSONPolygon,
   spreadWedges,
 } from '../utils/plumeGeometry.ts';
-import { riskImageCoordinates, riskImageUrl, type RiskGridData } from '../utils/riskGeometry.ts';
+import { bboxImageCoordinates, riskImageUrl, type RiskGridData } from '../utils/riskGeometry.ts';
 
 export interface MapViewProps {
   region: Region;
@@ -104,6 +104,12 @@ export function createFireFeatureCollection(
 
 const SMOKE = '#5B6573';
 
+/**
+ * ESA WorldCover cropland for all of India (pipeline/landcover_india.py), one 1-bit
+ * image fetched only when the toggle is first switched on.
+ */
+export const FARMLAND_IMAGE = { url: '/landcover/farmland.png', bbox: [68, 6, 98, 38] as const };
+
 const DEFAULT_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
 export const WATER = '#B3DAF5';
@@ -191,6 +197,7 @@ export function MapView({
   riskUrl,
 }: MapViewProps) {
   const [riskOn, setRiskOn] = useState(false);
+  const [farmlandOn, setFarmlandOn] = useState(false);
   const [riskGrid, setRiskGrid] = useState<RiskGridData | null>(null);
   const [riskError, setRiskError] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -342,7 +349,7 @@ export function MapView({
         // Colours are baked into the image by ml/render_risk.py, same ramp as before
         // (p tops out around 0.14, median 0.02, for a 14-day window).
         const url = riskImageUrl(riskUrl);
-        const coordinates = riskImageCoordinates(riskGrid);
+        const coordinates = bboxImageCoordinates(riskGrid);
         const source = map.getSource('risk-source') as maplibregl.ImageSource | undefined;
         if (source) source.updateImage({ url, coordinates });
         else {
@@ -363,6 +370,35 @@ export function MapView({
     if (map.isStyleLoaded()) apply();
     else map.once('idle', apply);
   }, [riskOn, riskGrid, riskUrl]);
+
+  // Farmland sits lowest, under risk, smoke and fire.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      if (farmlandOn && !map.getSource('farmland-source')) {
+        map.addSource('farmland-source', {
+          type: 'image',
+          url: FARMLAND_IMAGE.url,
+          coordinates: bboxImageCoordinates(FARMLAND_IMAGE),
+        });
+        const below = ['risk-fill', 'plumes-fill'].find((id) => map.getLayer(id));
+        map.addLayer(
+          {
+            id: 'farmland-fill',
+            type: 'raster',
+            source: 'farmland-source',
+            // Nearest keeps the 1 km cells crisp instead of smearing yellow into the fields' gaps.
+            paint: { 'raster-opacity': 0.4, 'raster-resampling': 'nearest', 'raster-fade-duration': 0 },
+          },
+          below
+        );
+      }
+      if (map.getLayer('farmland-fill')) map.setLayoutProperty('farmland-fill', 'visibility', farmlandOn ? 'visible' : 'none');
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('idle', apply);
+  }, [farmlandOn]);
 
   // Update markers
   useEffect(() => {
@@ -442,6 +478,23 @@ export function MapView({
         React.createElement('span', { className: 'legend-swatch swatch-smoke' }),
         React.createElement('span', { className: 'legend-label' }, 'Smoke drift')
       ),
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          className: 'risk-toggle farmland-toggle',
+          'aria-pressed': farmlandOn,
+          onClick: () => setFarmlandOn((on) => !on),
+        },
+        farmlandOn ? 'Hide farmland' : 'Show farmland'
+      ),
+      farmlandOn &&
+        React.createElement(
+          'p',
+          { className: 'risk-note' },
+          React.createElement('span', { className: 'legend-swatch swatch-farmland' }),
+          ' Cropland, ESA WorldCover 2021 (~1 km).'
+        ),
       riskUrl &&
         React.createElement(
           'button',

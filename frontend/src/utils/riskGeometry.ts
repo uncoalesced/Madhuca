@@ -24,7 +24,7 @@ export function riskImageUrl(gridUrl: string): string {
 }
 
 /** MapLibre image-source corners, clockwise from the top left. */
-export function riskImageCoordinates(
+export function bboxImageCoordinates(
   grid: Pick<RiskGridData, 'bbox'>,
 ): [[number, number], [number, number], [number, number], [number, number]] {
   const [west, south, east, north] = grid.bbox;

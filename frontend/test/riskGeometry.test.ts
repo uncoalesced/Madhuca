@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
-import { riskImageCoordinates, riskImageUrl, type RiskGridData } from '../src/utils/riskGeometry.ts';
+import { bboxImageCoordinates, riskImageUrl, type RiskGridData } from '../src/utils/riskGeometry.ts';
 
 test('image corners run clockwise from the top left of the grid box', () => {
-  assert.deepEqual(riskImageCoordinates({ bbox: [76.7, 12.6, 84.8, 19.95] }), [
+  assert.deepEqual(bboxImageCoordinates({ bbox: [76.7, 12.6, 84.8, 19.95] }), [
     [76.7, 19.95],
     [84.8, 19.95],
     [84.8, 12.6],

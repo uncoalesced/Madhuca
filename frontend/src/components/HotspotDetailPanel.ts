@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import type { Classification, Hotspot, Plume, Region } from '@madhuca/logic';
 import { TtsButton } from './TtsButton.ts';
-import { bearingToCompass, compassWord, distanceAndBearing, getPlumeSummary } from '../utils/plumeGeometry.ts';
+import {
+  bearingToAbbrev,
+  bearingToCompass,
+  compassWord,
+  distanceAndBearing,
+  getPlumeSummary,
+  isCalmPlume,
+} from '../utils/plumeGeometry.ts';
 
 // District towns in and around the four regions, approximate centre coordinates.
 // ponytail: fixed list, swap for a gazetteer if village-level labels (MASTER.md 5.3) land.
@@ -42,11 +49,82 @@ export interface HotspotDetailPanelProps {
   onClose: () => void;
 }
 
-export function getIntensityLabel(frp: number): { label: string; severity: 'low' | 'moderate' | 'high' | 'severe' } {
-  if (frp < 20) return { label: 'Low Intensity (Small field fire)', severity: 'low' };
-  if (frp <= 60) return { label: 'Moderate Intensity (Typical crop burning)', severity: 'moderate' };
-  if (frp <= 150) return { label: 'High Intensity (Substantial biomass fire)', severity: 'high' };
-  return { label: 'Severe / Intense Heat (Major wildfire event)', severity: 'severe' };
+type Severity = 'low' | 'moderate' | 'high' | 'severe';
+
+const INTENSITY_LABELS: Record<string, Record<Severity, string>> = {
+  en: {
+    low: 'Low Intensity (Small field fire)',
+    moderate: 'Moderate Intensity (Typical crop burning)',
+    high: 'High Intensity (Substantial biomass fire)',
+    severe: 'Severe / Intense Heat (Major wildfire event)',
+  },
+  hi: {
+    low: 'कम तीव्रता (छोटी खेत की आग)',
+    moderate: 'मध्यम तीव्रता (सामान्य पराली दहन)',
+    high: 'उच्च तीव्रता (बड़ी बायोमास आग)',
+    severe: 'बहुत तेज़ गर्मी (बड़ी जंगल की आग)',
+  },
+  pa: {
+    low: 'ਘੱਟ ਤੀਬਰਤਾ (ਛੋਟੀ ਖੇਤ ਦੀ ਅੱਗ)',
+    moderate: 'ਦਰਮਿਆਨੀ ਤੀਬਰਤਾ (ਆਮ ਪਰਾਲੀ ਸਾੜਨਾ)',
+    high: 'ਉੱਚ ਤੀਬਰਤਾ (ਵੱਡੀ ਬਾਇਓਮਾਸ ਅੱਗ)',
+    severe: 'ਬਹੁਤ ਤੇਜ਼ ਗਰਮੀ (ਵੱਡੀ ਜੰਗਲੀ ਅੱਗ)',
+  },
+  te: {
+    low: 'తక్కువ తీవ్రత (చిన్న పొలం మంట)',
+    moderate: 'మధ్యస్థ తీవ్రత (సాధారణ పంట వ్యర్థాల దహనం)',
+    high: 'అధిక తీవ్రత (పెద్ద బయోమాస్ మంట)',
+    severe: 'తీవ్రమైన వేడి (పెద్ద అడవి మంట)',
+  },
+};
+
+/** Card headings per alert language. */
+const CARD_TITLES: Record<string, { smoke: string; intensity: string; advisory: string }> = {
+  en: { smoke: 'Smoke Dispersion (Wind)', intensity: 'Fire Intensity & Power', advisory: 'What this means for you' },
+  hi: { smoke: 'धुएं का फैलाव (हवा)', intensity: 'आग की तीव्रता और शक्ति', advisory: 'आपके लिए इसका मतलब' },
+  pa: { smoke: 'ਧੂੰਏਂ ਦਾ ਫੈਲਾਅ (ਹਵਾ)', intensity: 'ਅੱਗ ਦੀ ਤੀਬਰਤਾ ਅਤੇ ਤਾਕਤ', advisory: 'ਤੁਹਾਡੇ ਲਈ ਇਸਦਾ ਮਤਲਬ' },
+  te: { smoke: 'పొగ వ్యాప్తి (గాలి)', intensity: 'మంట తీవ్రత & శక్తి', advisory: 'మీకు దీని అర్థం' },
+};
+
+export function getIntensityLabel(frp: number, lang: string = 'en'): { label: string; severity: Severity } {
+  const severity: Severity = frp < 20 ? 'low' : frp <= 60 ? 'moderate' : frp <= 150 ? 'high' : 'severe';
+  return { label: (INTENSITY_LABELS[lang] ?? INTENSITY_LABELS.en!)[severity], severity };
+}
+
+/**
+ * Big compass letter with an arrow turned to where the smoke travels. The map is
+ * locked north-up (MapView), so the arrow on screen matches the plume on the map.
+ */
+function DirectionBadge({ plume, lang }: { plume?: Plume; lang: string }) {
+  if (!plume || isCalmPlume(plume)) {
+    return React.createElement(
+      'div',
+      { className: 'direction-badge direction-badge-calm', 'aria-label': 'Calm wind' },
+      React.createElement('span', { className: 'direction-letter' }, 'CALM')
+    );
+  }
+  const bearing = plume.bearingDeg;
+  return React.createElement(
+    'div',
+    { className: 'direction-badge', 'aria-label': `Smoke heading ${bearingToCompass(bearing)}` },
+    React.createElement(
+      'svg',
+      {
+        className: 'direction-arrow',
+        viewBox: '0 0 48 48',
+        'aria-hidden': 'true',
+        style: { transform: `rotate(${Math.round(bearing)}deg)` },
+      },
+      // Points up (north) before rotation.
+      React.createElement('path', { d: 'M24 4 L36 24 H28 V44 H20 V24 H12 Z' })
+    ),
+    React.createElement(
+      'div',
+      { className: 'direction-text' },
+      React.createElement('span', { className: 'direction-letter' }, bearingToAbbrev(bearing)),
+      React.createElement('span', { className: 'direction-word' }, compassWord(bearing, lang))
+    )
+  );
 }
 
 const LOCAL_FALLBACK: Record<string, { downwind: string; vicinity: string }> = {
@@ -118,8 +196,9 @@ export function HotspotDetailPanel({
   }
 
 
-  const intensity = getIntensityLabel(hotspot.frp);
-  const plumeSummary = getPlumeSummary(plume);
+  const intensity = getIntensityLabel(hotspot.frp, selectedLang);
+  const plumeSummary = getPlumeSummary(plume, selectedLang);
+  const titles = CARD_TITLES[selectedLang] ?? CARD_TITLES.en!;
   const alertText = generatePlainLanguageAlert(hotspot, classification, plume, selectedLang);
 
   const isCropBurning = classification?.kind === 'likely-crop-burning';
@@ -194,7 +273,7 @@ export function HotspotDetailPanel({
     React.createElement(
       'div',
       { className: 'panel-card advisory-card' },
-      React.createElement('div', { className: 'card-title' }, 'What this means for you'),
+      React.createElement('div', { className: 'card-title' }, titles.advisory),
       React.createElement('p', { className: 'advisory-text' }, alertText),
       classification?.rationale &&
         React.createElement('div', { className: 'card-note', style: { marginTop: '0.35rem' } }, `Scientific reason: ${classification.rationale}`)
@@ -208,7 +287,8 @@ export function HotspotDetailPanel({
       React.createElement(
         'div',
         { className: 'panel-card' },
-        React.createElement('div', { className: 'card-title' }, 'Smoke Dispersion (Wind)'),
+        React.createElement('div', { className: 'card-title' }, titles.smoke),
+        React.createElement(DirectionBadge, { plume, lang: selectedLang }),
         React.createElement('div', { className: 'card-value' }, plumeSummary.directionText),
         React.createElement('div', { className: 'card-subtext' }, plumeSummary.reachText),
         React.createElement('p', { className: 'card-note' }, plumeSummary.safetyAdvice)
@@ -218,7 +298,7 @@ export function HotspotDetailPanel({
       React.createElement(
         'div',
         { className: 'panel-card' },
-        React.createElement('div', { className: 'card-title' }, 'Fire Intensity & Power'),
+        React.createElement('div', { className: 'card-title' }, titles.intensity),
         React.createElement('div', { className: `card-value severity-${intensity.severity}` }, `${hotspot.frp.toFixed(1)} MW`),
         React.createElement('div', { className: 'card-subtext' }, intensity.label),
         React.createElement(

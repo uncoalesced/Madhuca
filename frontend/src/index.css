@@ -19,6 +19,7 @@
   /* Fire semantics: data only, never decoration */
   --stubble: #F19143;
   --wildfire: #EF2D56;
+  --smoke: #5B6573; /* slate grey: smoke plume, map and panel */
   --stubble-bg: color-mix(in srgb, var(--stubble) 14%, var(--porcelain));
   --wildfire-bg: color-mix(in srgb, var(--wildfire) 10%, var(--porcelain));
   --green-bg: color-mix(in srgb, var(--green-tint) 22%, var(--porcelain));
@@ -314,6 +315,29 @@ button:focus-visible {
   background-color: var(--wildfire);
 }
 
+.legend-swatch {
+  width: 14px;
+  height: 10px;
+  display: inline-block;
+  flex: none;
+  border-radius: 2px;
+}
+
+/* Fades away from the fire, like the haze bands on the map */
+.swatch-spread {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--wildfire) 55%, transparent), color-mix(in srgb, var(--wildfire) 12%, transparent));
+}
+
+.swatch-farmland {
+  background-color: color-mix(in srgb, #C9B03A 55%, transparent);
+  vertical-align: -1px;
+}
+
+.swatch-smoke {
+  background-color: color-mix(in srgb, var(--smoke) 18%, transparent);
+  border: 2px dotted var(--smoke);
+}
+
 /* Hotspot Detail Panel (Mobile Bottom Sheet / Desktop Drawer) */
 .hotspot-detail-panel {
   display: none;
@@ -537,6 +561,47 @@ button:focus-visible {
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--green-shade);
+}
+
+/* Smoke direction badge: big compass letter + arrow rotated to the plume bearing */
+.direction-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.35rem 0;
+}
+
+.direction-arrow {
+  width: 3.25rem;
+  height: 3.25rem;
+  flex: none;
+  fill: var(--smoke);
+  transition: transform 0.3s ease;
+}
+
+.direction-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+
+.direction-letter {
+  font-family: var(--font-mono);
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: var(--graphite);
+  letter-spacing: -0.02em;
+}
+
+.direction-badge-calm .direction-letter {
+  font-size: 1.6rem;
+  color: var(--muted-ink);
+}
+
+.direction-word {
+  font-size: 0.9rem;
+  color: var(--muted-ink);
+  font-weight: 500;
 }
 
 .card-subtext {

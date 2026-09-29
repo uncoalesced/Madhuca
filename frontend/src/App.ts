@@ -258,7 +258,7 @@ export function App() {
       React.createElement(
         'p',
         { className: 'footer-attribution' },
-        '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data',
+        '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data · Boundaries: DataMeet (Survey of India outline), Natural Earth',
         React.createElement(
           'span',
           { className: 'footer-disclaimer' },

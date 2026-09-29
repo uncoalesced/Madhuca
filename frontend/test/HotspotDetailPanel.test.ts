@@ -105,8 +105,10 @@ test('HotspotDetailPanel renders full details and audio section when active', ()
   assert.ok(html.includes('About 14 km South-East of Jalandhar'), 'Expected nearest-town line');
   assert.ok(html.includes('Likely Crop Stubble Burning'), 'Expected classification badge');
   assert.ok(html.includes('38.5 MW'), 'Expected FRP value');
-  assert.ok(html.includes('What this means for you'), 'Expected plain language advisory header');
-  assert.ok(html.includes('Smoke Dispersion (Wind)'), 'Expected plume card title');
+  // Punjab opens in Punjabi, card headings included.
+  assert.ok(html.includes('ਤੁਹਾਡੇ ਲਈ ਇਸਦਾ ਮਤਲਬ'), 'Expected Punjabi advisory header');
+  assert.ok(html.includes('ਧੂੰਏਂ ਦਾ ਫੈਲਾਅ (ਹਵਾ)'), 'Expected Punjabi plume card title');
+  assert.ok(html.includes('ਧੂੰਆਂ ਪੂਰਬ ਵੱਲ (90°)'), 'Expected Punjabi smoke direction');
   assert.ok(html.includes('Close detail panel'), 'Expected close button with aria-label');
   assert.ok(html.includes('ਪੰਜਾਬੀ'), 'Expected Punjabi language pill for Punjab region');
 });
@@ -123,6 +125,37 @@ test('Indic alert text carries the compass word in its own language', () => {
   const noPlume = generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, undefined, 'hi');
   assert.doesNotMatch(noPlume, /[A-Za-z]{3,}/);
   assert.match(generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, east, 'en'), /East/);
+});
+
+test('getIntensityLabel is localized and keeps the same severity in every language', () => {
+  assert.equal(getIntensityLabel(3.5, 'te').label, 'తక్కువ తీవ్రత (చిన్న పొలం మంట)');
+  assert.equal(getIntensityLabel(3.5, 'hi').severity, 'low');
+  assert.equal(getIntensityLabel(3.5).label, 'Low Intensity (Small field fire)');
+});
+
+test('smoke direction badge: big compass letter plus an arrow rotated to the bearing', () => {
+  const render = (plume: Plume | undefined, region: 'telangana' | 'delhi' = 'telangana') =>
+    renderToStaticMarkup(
+      React.createElement(HotspotDetailPanel, {
+        hotspot: MOCK_HOTSPOT,
+        classification: MOCK_WILDFIRE_CLASSIFICATION,
+        plume,
+        region,
+        onClose: () => {},
+      }),
+    );
+  // The wildfire in Joel's screenshot: 261 degrees, west.
+  const west = render({ bearingDeg: 261, distanceKm: 3.6, spreadDeg: 30 });
+  assert.match(west, /class="direction-letter">W</);
+  assert.match(west, /rotate\(261deg\)/);
+  assert.match(west, /class="direction-word">పడమర</, 'Telugu region shows the Telugu word under the letter');
+  assert.match(west, /పొగ పడమర వైపు \(261°\)/, 'dispersion value is Telugu, not "Blowing West"');
+  assert.doesNotMatch(west, /Blowing/);
+  const south = render({ bearingDeg: 187, distanceKm: 2.8, spreadDeg: 30 }, 'delhi');
+  assert.match(south, /class="direction-letter">S</);
+  assert.match(south, /धुआं दक्षिण की ओर \(187°\)/);
+  assert.match(render(undefined), /class="direction-letter">CALM</);
+  assert.doesNotMatch(render(undefined), /direction-arrow/);
 });
 
 test('HotspotDetailPanel closes and reopens: null -> empty, hotspot -> dialog, null -> empty', () => {

@@ -60,6 +60,10 @@ jobs:
           echo "grid is $size bytes"
           test "$size" -lt 51200
 
+      # The map draws this image, clipped to the region's states and coast.
+      - name: Render the map image
+        run: python -u ml/render_risk.py ml/out/${{ inputs.region }}.json
+
       - uses: actions/upload-artifact@v4
         with:
           name: ml-risk-${{ inputs.region }}
@@ -70,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p frontend/public/risk
-          cp ml/out/${{ inputs.region }}.json frontend/public/risk/
+          cp ml/out/${{ inputs.region }}.json ml/out/${{ inputs.region }}.png frontend/public/risk/
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add -- frontend/public/risk

@@ -6,7 +6,10 @@ import {
   MapView,
   getMarkerColor,
   createPlumeFeatureCollection,
+  createFireFeatureCollection,
+  FARMLAND_IMAGE,
 } from '../src/components/MapView.ts';
+import { distanceAndBearing, fireSpreadKm } from '../src/utils/plumeGeometry.ts';
 import { REGION_BBOX, type Classification, type Hotspot, type Plume } from '@madhuca/logic';
 
 const MOCK_HOTSPOTS: Hotspot[] = [
@@ -111,6 +114,56 @@ test('3 hotspots with plumes produce 3 plume overlays, one per hotspot id', () =
     MOCK_CLASSIFICATIONS,
   );
   assert.deepEqual(fc.features.map((f) => f.id), ['hs-1', 'hs-2', 'hs-3']);
+});
+
+test('fire overlay: one footprint per hotspot; spread haze only with a known wind speed', () => {
+  const third: Hotspot = { ...MOCK_HOTSPOTS[0]!, id: 'hs-3', lat: 30.9 };
+  const hotspots = [...MOCK_HOTSPOTS, third];
+  const plumes = { ...MOCK_PLUMES, 'hs-3': { bearingDeg: 180, distanceKm: 5, spreadDeg: 20 } };
+
+  const noWind = createFireFeatureCollection(hotspots, plumes, MOCK_CLASSIFICATIONS);
+  assert.equal(noWind.features.length, 3, 'without wind speeds, only the 3 footprints: no guessed spread');
+  assert.ok(noWind.features.every((f) => f.properties?.band === 0));
+  assert.equal(noWind.features[1]?.properties?.color, '#EF2D56', 'wildfire footprint is red');
+
+  const windy = createFireFeatureCollection(hotspots, plumes, MOCK_CLASSIFICATIONS, { 'hs-1': 3, 'hs-2': 3, 'hs-3': 0.2 });
+  assert.equal(windy.features.filter((f) => f.properties?.band === 0).length, 3);
+  assert.equal(windy.features.filter((f) => f.properties?.band !== 0).length, 6, '3 haze bands for each of the 2 windy fires; calm hs-3 gets none');
+
+  // The outer band reaches fireSpreadKm(3) = 3.24 km toward the plume bearing (hs-2 blows east).
+  const outer = windy.features.find((f) => f.properties?.hotspotId === 'hs-2' && f.properties?.band === 1)!;
+  const tip = outer.geometry.coordinates[0]![5]!; // the wedge's centre ray
+  const km = distanceAndBearing(31.3, 75.9, tip[1]!, tip[0]!);
+  assert.ok(Math.abs(km.distanceKm - 3.24) < 0.01, String(km.distanceKm));
+  assert.ok(Math.abs(km.bearingDeg - 90) < 0.5, String(km.bearingDeg));
+});
+
+test('fireSpreadKm: 10% of wind speed over 3 h, zero when calm or unknown', () => {
+  assert.ok(Math.abs(fireSpreadKm(3) - 3.24) < 1e-9);
+  assert.equal(fireSpreadKm(0.3), 0);
+  assert.equal(fireSpreadKm(undefined), 0);
+  assert.equal(fireSpreadKm(NaN), 0);
+});
+
+test('legend explains fire, possible spread and smoke', () => {
+  const html = renderToStaticMarkup(React.createElement(MapView, { region: 'punjab', hotspots: [], onSelect: () => {} }));
+  assert.match(html, /Possible spread \(3 h\)/);
+  assert.match(html, /not a fire-spread model/);
+  assert.match(html, /Smoke drift/);
+});
+
+test('farmland toggle is always offered, and its image box matches the national land-cover grid', async () => {
+  const html = renderToStaticMarkup(React.createElement(MapView, { region: 'delhi', hotspots: [], onSelect: () => {} }));
+  assert.match(html, /Show farmland/);
+  const { readFileSync } = await import('node:fs');
+  const bin = readFileSync(new URL('../public/landcover/india.bin', import.meta.url));
+  assert.equal(bin.toString('ascii', 0, 4), 'MLC1');
+  const [west, north, res] = [bin.readDoubleLE(8), bin.readDoubleLE(16), bin.readDoubleLE(24)];
+  const [cols, rows] = [bin.readUInt32LE(32), bin.readUInt32LE(36)];
+  assert.deepEqual([...FARMLAND_IMAGE.bbox], [west, north - rows * res, west + cols * res, north]);
+  assert.equal(bin.length, 40 + Math.ceil((cols * rows) / 4));
+  const png = readFileSync(new URL('../public/landcover/farmland.png', import.meta.url));
+  assert.ok(png.length < 1_000_000, `farmland.png is ${png.length} bytes; phones download it on toggle`);
 });
 
 test('risk toggle renders only when the region has a risk grid', () => {

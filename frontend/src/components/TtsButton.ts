@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { synthesizeSpeech, type SupportedTtsLanguage } from '@madhuca/logic';
+import { synthesizeWithPiper } from '../utils/piperVoice.ts';
 
 export interface TtsButtonProps {
   /** The plain-language alert line to read aloud. */
   text: string;
   /** BCP-47 language code — 'hi', 'pa', 'te', 'en'. */
   langCode?: string;
-  /** Optional custom TTS API endpoint. */
-  endpoint?: string;
 }
 
 export type TtsPlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
@@ -20,63 +18,109 @@ export const TTS_LANGUAGE_NAMES: Record<string, string> = {
 };
 
 /**
- * Fallback when the Indic-TTS service is unreachable: the browser's own speech engine,
- * but only if it has a voice for this language. Reading Hindi text with an English
- * voice would be worse than silence. Returns false when no such voice exists.
+ * The device's own voice for this language, if it has one. Chrome fills its voice
+ * list asynchronously, so an empty first answer means "not loaded yet", not "none":
+ * wait for `voiceschanged` (bounded) before deciding. Reading Hindi text with an
+ * English voice would be worse than silence, so only a matching language counts.
  */
-export function speakWithBrowser(text: string, langCode: string, onEnd: () => void): boolean {
-  const synth = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
-  const voice = synth?.getVoices().find((v) => v.lang.toLowerCase().startsWith(langCode));
-  if (!synth || !voice) return false;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.voice = voice;
-  utterance.lang = voice.lang;
-  utterance.onend = onEnd;
-  utterance.onerror = onEnd;
-  synth.cancel();
-  synth.speak(utterance);
-  return true;
+export async function browserVoiceFor(
+  langCode: string,
+  synth: SpeechSynthesis | undefined = typeof window !== 'undefined' ? window.speechSynthesis : undefined,
+  timeoutMs = 1500,
+): Promise<SpeechSynthesisVoice | undefined> {
+  if (!synth) return undefined;
+  let voices = synth.getVoices();
+  if (!voices.length) {
+    voices = await new Promise<SpeechSynthesisVoice[]>((resolve) => {
+      const done = () => resolve(synth.getVoices());
+      synth.addEventListener('voiceschanged', done, { once: true });
+      setTimeout(done, timeoutMs);
+    });
+  }
+  return voices.find((v) => v.lang.toLowerCase().replace('_', '-').split('-')[0] === langCode);
 }
 
 // In-memory audio URL cache: key = `${lang}:${text}` -> Blob URL
 const audioBlobCache = new Map<string, string>();
 
-/** Plays the alert aloud via Jammy's Indic-TTS wrapper. */
-export function TtsButton({ text, langCode = 'hi', endpoint }: TtsButtonProps) {
+/**
+ * Reads the alert aloud, free and open source end to end: the device's own voice when
+ * it has this language, else a Piper voice run in the browser (utils/piperVoice.ts),
+ * else an honest "voice unavailable".
+ */
+export function TtsButton({ text, langCode = 'hi' }: TtsButtonProps) {
   const [playbackState, setPlaybackState] = useState<TtsPlaybackState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const speakingRef = useRef(false);
 
   const langLabel = TTS_LANGUAGE_NAMES[langCode] ?? langCode.toUpperCase();
   const cacheKey = `${langCode}:${text.trim()}`;
 
-  // Cleanup audio on unmount or when text/lang changes
+  // Stop whatever is playing when the text or language changes, or on unmount.
   useEffect(() => {
+    setPlaybackState('idle');
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      audioRef.current?.pause();
+      audioRef.current = null;
+      if (speakingRef.current) window.speechSynthesis?.cancel();
+      speakingRef.current = false;
     };
   }, [text, langCode]);
 
+  const playPiper = async () => {
+    let audioUrl = audioBlobCache.get(cacheKey);
+    if (!audioUrl) {
+      const wav = await synthesizeWithPiper(text, langCode, (loaded, total) =>
+        setProgress(
+          total
+            ? `Downloading voice ${Math.round(loaded / 1e6)} / ${Math.round(total / 1e6)} MB (one time)`
+            : `Downloading voice ${Math.round(loaded / 1e6)} MB (one time)`,
+        ),
+      );
+      setProgress('Preparing voice...');
+      audioUrl = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
+      audioBlobCache.set(cacheKey, audioUrl);
+    }
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    audio.onended = () => setPlaybackState('idle');
+    audio.onerror = () => {
+      setErrorMessage('Playback failed');
+      setPlaybackState('error');
+    };
+    await audio.play();
+    setProgress(null);
+    setPlaybackState('playing');
+  };
+
+  const fail = () => {
+    setProgress(null);
+    setErrorMessage('voice unavailable, read the alert text');
+    setPlaybackState('error');
+  };
+
   const handleTogglePlayback = async () => {
-    // If currently playing, pause it
-    if (playbackState === 'playing' && audioRef.current) {
-      audioRef.current.pause();
-      setPlaybackState('paused');
+    if (playbackState === 'playing') {
+      if (speakingRef.current) {
+        // speechSynthesis.pause() is unreliable on Android; stopping is honest.
+        window.speechSynthesis.cancel();
+        speakingRef.current = false;
+        setPlaybackState('idle');
+      } else if (audioRef.current) {
+        audioRef.current.pause();
+        setPlaybackState('paused');
+      }
       return;
     }
-
-    // If currently paused, resume it
     if (playbackState === 'paused' && audioRef.current) {
       audioRef.current.play().then(
         () => setPlaybackState('playing'),
-        () => setPlaybackState('error')
+        () => setPlaybackState('error'),
       );
       return;
     }
-
     if (!text.trim()) {
       setErrorMessage('No alert text to read');
       setPlaybackState('error');
@@ -86,54 +130,42 @@ export function TtsButton({ text, langCode = 'hi', endpoint }: TtsButtonProps) {
     setPlaybackState('loading');
     setErrorMessage(null);
 
+    const voice = await browserVoiceFor(langCode);
+    if (voice) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.voice = voice;
+      utterance.lang = voice.lang;
+      utterance.onend = () => {
+        speakingRef.current = false;
+        setPlaybackState('idle');
+      };
+      // Network voices (Chrome's Google voices) can fail after starting: fall through to Piper.
+      utterance.onerror = (e) => {
+        speakingRef.current = false;
+        if (e.error === 'canceled' || e.error === 'interrupted') return;
+        setPlaybackState('loading');
+        playPiper().catch(fail);
+      };
+      window.speechSynthesis.cancel();
+      speakingRef.current = true;
+      window.speechSynthesis.speak(utterance);
+      setPlaybackState('playing');
+      return;
+    }
+
     try {
-      let audioUrl = audioBlobCache.get(cacheKey);
-
-      if (!audioUrl) {
-        // Synthesize via Jammy's Indic-TTS module
-        const audioBuffer = await synthesizeSpeech(text, langCode as SupportedTtsLanguage, {
-          endpoint,
-        });
-        const blob = new Blob([audioBuffer], { type: 'audio/wav' });
-        audioUrl = URL.createObjectURL(blob);
-        audioBlobCache.set(cacheKey, audioUrl);
-      }
-
-      if (typeof window !== 'undefined') {
-        const audio = new Audio(audioUrl);
-        audioRef.current = audio;
-
-        audio.onended = () => {
-          setPlaybackState('idle');
-        };
-
-        audio.onerror = () => {
-          setErrorMessage('Playback failed');
-          setPlaybackState('error');
-        };
-
-        await audio.play();
-        setPlaybackState('playing');
-      } else {
-        // Non-DOM / SSR fallback
-        setPlaybackState('idle');
-      }
+      await playPiper();
     } catch {
-      if (speakWithBrowser(text, langCode, () => setPlaybackState('idle'))) {
-        setPlaybackState('idle');
-        return;
-      }
-      setErrorMessage('voice unavailable, read the alert text');
-      setPlaybackState('error');
+      fail();
     }
   };
 
   const getButtonText = () => {
     switch (playbackState) {
       case 'loading':
-        return 'Synthesizing voice...';
+        return progress ?? 'Preparing voice...';
       case 'playing':
-        return `Pause audio (${langLabel})`;
+        return `${speakingRef.current ? 'Stop' : 'Pause'} audio (${langLabel})`;
       case 'paused':
         return `Resume audio (${langLabel})`;
       case 'error':
@@ -154,6 +186,6 @@ export function TtsButton({ text, langCode = 'hi', endpoint }: TtsButtonProps) {
       disabled: playbackState === 'loading',
       onClick: handleTogglePlayback,
     },
-    React.createElement('span', { className: 'tts-button-content' }, getButtonText())
+    React.createElement('span', { className: 'tts-button-content' }, getButtonText()),
   );
 }

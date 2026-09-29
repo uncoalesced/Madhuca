@@ -4,6 +4,7 @@ import {
   destinationPoint,
   plumeToGeoJSONPolygon,
   bearingToCompass,
+  bearingToAbbrev,
   getPlumeSummary,
 } from '../src/utils/plumeGeometry.ts';
 import type { Plume } from '@madhuca/logic';
@@ -105,6 +106,31 @@ test('getPlumeSummary generates clear, non-technical safety guidance', () => {
   const calmSummary = getPlumeSummary(undefined);
   assert.ok(calmSummary.directionText.includes('Calm wind'));
   assert.ok(calmSummary.safetyAdvice.includes('windows closed'));
+});
+
+test('bearingToAbbrev gives the 8-point letters for the badge', () => {
+  assert.equal(bearingToAbbrev(261), 'W');
+  assert.equal(bearingToAbbrev(225), 'SW');
+  assert.equal(bearingToAbbrev(187), 'S');
+  assert.equal(bearingToAbbrev(44), 'NE');
+  assert.equal(bearingToAbbrev(-10), 'N');
+  assert.equal(bearingToAbbrev(359), 'N');
+});
+
+test('getPlumeSummary speaks the alert language, compass word included', () => {
+  const west: Plume = { bearingDeg: 270, distanceKm: 3.6, spreadDeg: 30 };
+  const te = getPlumeSummary(west, 'te');
+  assert.ok(te.directionText.includes('పడమర'), te.directionText);
+  assert.ok(te.reachText.includes('3.6 km'));
+  const hi = getPlumeSummary(west, 'hi');
+  const pa = getPlumeSummary(west, 'pa');
+  assert.ok(hi.safetyAdvice.includes('पश्चिम'), hi.safetyAdvice);
+  assert.ok(pa.directionText.includes('ਪੱਛਮ'), pa.directionText);
+  for (const s of [te, hi, pa]) {
+    assert.doesNotMatch(`${s.directionText} ${s.reachText} ${s.safetyAdvice}`, /West|Blowing|downwind|Downwind/);
+  }
+  assert.doesNotMatch(getPlumeSummary(undefined, 'hi').directionText, /Calm/);
+  assert.equal(getPlumeSummary(west).directionText, 'Blowing West (270°)');
 });
 
 test('plumeToGeoJSONPolygon handles invalid and NaN inputs gracefully without throwing', () => {

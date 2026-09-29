@@ -131,27 +131,88 @@ export function compassWord(bearingDeg: number, lang: string): string {
   return words[index] ?? words[0]!;
 }
 
-/** Generates a plain-language summary of plume travel for non-specialists. */
-export function getPlumeSummary(plume?: Plume): {
+/** 8-point compass abbreviation (N, NE, ... NW) for the big direction badge. */
+export function bearingToAbbrev(bearingDeg: number): string {
+  const index = Math.round((((bearingDeg % 360) + 360) % 360) / 45) % 8;
+  return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][index] ?? 'N';
+}
+
+/** True when the plume is a calm-wind pool rather than a directional cone. */
+export function isCalmPlume(plume?: Plume): boolean {
+  return !plume || plume.spreadDeg >= 180 || plume.distanceKm < 0.5;
+}
+
+// Dispersion card copy per alert language. `c` is the compass word already in that language.
+const SUMMARY_COPY: Record<
+  string,
+  {
+    calm: { direction: string; reach: string; advice: string };
+    direction: (c: string, deg: number) => string;
+    reach: (km: string) => string;
+    advice: (c: string) => string;
+  }
+> = {
+  en: {
+    calm: {
+      direction: 'Calm wind — smoke lingering locally',
+      reach: '< 1 km radius',
+      advice: 'Smoke is pooling in the immediate vicinity. Keep windows closed nearby.',
+    },
+    direction: (c, deg) => `Blowing ${c} (${deg}°)`,
+    reach: (km) => `~${km} km downwind reach`,
+    advice: (c) => `Downwind communities to the ${c} will experience smoke and reduced visibility.`,
+  },
+  hi: {
+    calm: {
+      direction: 'हवा शांत — धुआं आसपास ही रुका है',
+      reach: '1 km से कम दायरा',
+      advice: 'धुआं आसपास ही जमा हो रहा है। पास के लोग खिड़कियां बंद रखें।',
+    },
+    direction: (c, deg) => `धुआं ${c} की ओर (${deg}°)`,
+    reach: (km) => `हवा की दिशा में लगभग ${km} km तक`,
+    advice: (c) => `${c} की ओर के इलाकों में धुआं और कम दृश्यता रहेगी।`,
+  },
+  pa: {
+    calm: {
+      direction: 'ਹਵਾ ਸ਼ਾਂਤ — ਧੂੰਆਂ ਨੇੜੇ ਹੀ ਰੁਕਿਆ ਹੈ',
+      reach: '1 km ਤੋਂ ਘੱਟ ਘੇਰਾ',
+      advice: 'ਧੂੰਆਂ ਨੇੜੇ ਹੀ ਇਕੱਠਾ ਹੋ ਰਿਹਾ ਹੈ। ਨੇੜਲੇ ਲੋਕ ਖਿੜਕੀਆਂ ਬੰਦ ਰੱਖਣ।',
+    },
+    direction: (c, deg) => `ਧੂੰਆਂ ${c} ਵੱਲ (${deg}°)`,
+    reach: (km) => `ਹਵਾ ਦੀ ਦਿਸ਼ਾ ਵਿੱਚ ਲਗਭਗ ${km} km ਤੱਕ`,
+    advice: (c) => `${c} ਵੱਲ ਦੇ ਇਲਾਕਿਆਂ ਵਿੱਚ ਧੂੰਆਂ ਅਤੇ ਘੱਟ ਦਿਖਾਈ ਦੇਵੇਗਾ।`,
+  },
+  te: {
+    calm: {
+      direction: 'గాలి నిశ్చలం — పొగ సమీపంలోనే ఉంది',
+      reach: '1 km కంటే తక్కువ పరిధి',
+      advice: 'పొగ సమీప ప్రాంతంలోనే పేరుకుంటోంది. దగ్గరలో ఉన్నవారు కిటికీలు మూసి ఉంచండి.',
+    },
+    direction: (c, deg) => `పొగ ${c} వైపు (${deg}°)`,
+    reach: (km) => `గాలి దిశలో సుమారు ${km} km వరకు`,
+    advice: (c) => `${c} వైపు ఉన్న ప్రాంతాల్లో పొగ, తక్కువ దృశ్యత ఉంటాయి.`,
+  },
+};
+
+/** Plain-language summary of plume travel for non-specialists, in the alert's language. */
+export function getPlumeSummary(
+  plume?: Plume,
+  lang: string = 'en'
+): {
   directionText: string;
   reachText: string;
   safetyAdvice: string;
 } {
-  if (!plume || plume.spreadDeg >= 180 || plume.distanceKm < 0.5) {
-    return {
-      directionText: 'Calm wind — smoke lingering locally',
-      reachText: '< 1 km radius',
-      safetyAdvice: 'Smoke is pooling in the immediate vicinity. Keep windows closed nearby.',
-    };
+  const copy = SUMMARY_COPY[lang] ?? SUMMARY_COPY.en!;
+  if (!plume || isCalmPlume(plume)) {
+    return { directionText: copy.calm.direction, reachText: copy.calm.reach, safetyAdvice: copy.calm.advice };
   }
 
-  const compass = bearingToCompass(plume.bearingDeg);
-  const distance = plume.distanceKm.toFixed(1);
-
+  const compass = compassWord(plume.bearingDeg, lang);
   return {
-    directionText: `Blowing ${compass} (${Math.round(plume.bearingDeg)}°)`,
-    reachText: `~${distance} km downwind reach`,
-    safetyAdvice: `Downwind communities to the ${compass} will experience smoke and reduced visibility.`,
+    directionText: copy.direction(compass, Math.round(plume.bearingDeg)),
+    reachText: copy.reach(plume.distanceKm.toFixed(1)),
+    safetyAdvice: copy.advice(compass),
   };
 }
 

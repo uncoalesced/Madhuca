@@ -19,6 +19,7 @@
   /* Fire semantics: data only, never decoration */
   --stubble: #F19143;
   --wildfire: #EF2D56;
+  --smoke: #5B6573; /* slate grey: smoke plume, map and panel */
   --stubble-bg: color-mix(in srgb, var(--stubble) 14%, var(--porcelain));
   --wildfire-bg: color-mix(in srgb, var(--wildfire) 10%, var(--porcelain));
   --green-bg: color-mix(in srgb, var(--green-tint) 22%, var(--porcelain));
@@ -537,6 +538,47 @@ button:focus-visible {
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--green-shade);
+}
+
+/* Smoke direction badge: big compass letter + arrow rotated to the plume bearing */
+.direction-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.35rem 0;
+}
+
+.direction-arrow {
+  width: 3.25rem;
+  height: 3.25rem;
+  flex: none;
+  fill: var(--smoke);
+  transition: transform 0.3s ease;
+}
+
+.direction-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+
+.direction-letter {
+  font-family: var(--font-mono);
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: var(--graphite);
+  letter-spacing: -0.02em;
+}
+
+.direction-badge-calm .direction-letter {
+  font-size: 1.6rem;
+  color: var(--muted-ink);
+}
+
+.direction-word {
+  font-size: 0.9rem;
+  color: var(--muted-ink);
+  font-weight: 500;
 }
 
 .card-subtext {

@@ -4,6 +4,101 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-29 — Indic voice, India's boundary, overlays, clipped risk, farmland (#38)
+
+Branch `feat/india-map-overhaul`. From my review of the live site. Region pivot and
+the spread haze wait on contract #37 (not started, see "Still open").
+
+- **Voice, free and open source.** `TtsButton` now tries the device's own voice for
+  the language (waiting for Chrome's async voice list, which the old code read as
+  "no voice"), then Piper run in the browser (`frontend/src/utils/piperVoice.ts`):
+  onnxruntime-web 1.18 + piper_phonemize WASM from cdnjs/jsDelivr, rhasspy voices
+  from Hugging Face (`hi_IN-pratham-medium`, `te_IN-maya-medium`, ~63 MB each,
+  fetched once on first use, kept in the Cache API). Piper has no Punjabi voice:
+  Gurmukhi is transliterated to Devanagari and read by the Hindi voice. No key, no
+  server; the dead AI4Bharat endpoint is no longer called. The espeak-ng data
+  (18 MB) is held once and preloaded: letting Emscripten fetch it cost ~7 s per alert.
+- **Dispersion card, card titles, intensity labels** follow the selected language.
+- **Compass badge**: big N/NE/.../NW letter and an arrow rotated to the smoke bearing.
+  Map rotation is disabled so the arrow always matches the map.
+- **India's boundary.** Positron's country/state lines (de facto: PoK, Gilgit-Baltistan,
+  Aksai Chin outside India) are hidden. `pipeline/boundaries.mjs` generates our own
+  from Natural Earth 1:10m India point of view (borders) and DataMeet States/Admin2
+  (36 states/UTs, Ladakh separate). Only edges shared by two polygons are drawn, so
+  coasts are not traced as borders. The basemap's "Azad Kashmir" / "Gilgit-Baltistan"
+  labels are filtered out. Water and rivers are light blue.
+- **Overlays**: smoke is slate grey with a dotted outline; each fire gets its 375 m
+  VIIRS footprint; a red "possible spread (3 h)" haze (10% of wind speed, Cruz &
+  Alexander 2019 rule of thumb) is coded and tested but only draws once `Plume`
+  carries wind speed (#37). Selecting a fire frames it, since the overlays are km-scale.
+- **Risk layer follows state lines**: `ml/render_risk.py` bakes the 0.1 degree grid
+  into a PNG, bilinear between cells, transparent outside Telangana + AP, rows even in
+  Web Mercator. The `ml-risk` workflow now renders and publishes it with the grid.
+- **Farmland toggle**: `pipeline/landcover_india.py` reads WorldCover COG overviews for
+  all of India (102 tiles, ~20 s) into `landcover/farmland.png` (0.22 MB) and a 2-bit
+  class grid `landcover/india.bin` (9.6 MB, for the pivot's O(1) classifier lookup).
+
+### How to re-run the checks
+
+```bash
+npm run typecheck && npm run build && npm test
+curl -sSLo /tmp/ne_ind.geojson https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_ind.geojson
+for e in shp dbf; do curl -sSLo /tmp/Admin2.$e https://raw.githubusercontent.com/datameet/maps/master/States/Admin2.$e; done
+node pipeline/boundaries.mjs /tmp/ne_ind.geojson /tmp/Admin2
+python ml/render_risk.py frontend/public/risk/telangana.json
+pip install rasterio numpy && python pipeline/landcover_india.py
+```
+
+Passing looks like (real output):
+
+```
+ok  Gilgit (Gilgit-Baltistan)  -> Ladakh
+ok  Muzaffarabad (PoK)         -> Jammu & Kashmir
+ok  Aksai Chin                 -> Ladakh
+ok  Tawang                     -> Arunachal Pradesh
+ok  Lahore                     -> outside India
+wrote frontend/public/boundaries/borders.json: 36 features, 0.09 MB
+wrote frontend/public/boundaries/state-lines.json: 537 features, 0.32 MB
+wrote frontend/public/boundaries/states.json: 36 features, 0.68 MB
+
+telangana: 810x766 px, 39.2% inside ['Telangana', 'Andhra Pradesh'], wrote frontend/public/risk/telangana.png (192104 bytes)
+ok  Nalgonda (Telangana)     alpha 255
+ok  Bengaluru (Karnataka)    alpha 0
+ok  Chennai (Tamil Nadu)     alpha 0
+ok  Bay of Bengal            alpha 0
+
+102 of 121 WorldCover tiles cover the box
+ok  farmland between Ludhiana and Jagraon    cropland
+ok  Nallamala forest, Srisailam (AP/TS)      forest
+ok  Lahore, outside India                    other
+```
+
+`npm test`: logic 68/68, worker 17/17, frontend 54/54.
+
+Browser (in-app, no device voices, so every language went through Piper): pressing
+Listen played Telugu 10.51 s of audio (12.5 s to start, first 63 MB download), Hindi
+11.51 s (3.7 s to start, cached), Punjabi 9.67 s (2.8 s). Live `wrangler dev` with
+real FIRMS (13 Punjab hotspots): wildfire panel showed badge `W | ਪੱਛਮ`, arrow
+`rotate(267deg)`, value `ਧੂੰਆਂ ਪੱਛਮ ਵੱਲ (267°)`. Screenshots: full northern border
+incl. Gilgit-Baltistan and Aksai Chin; risk layer stopping at the Karnataka,
+Maharashtra, Chhattisgarh and Odisha borders and at the coast; farmland over Indian
+but not Pakistani Punjab.
+
+### What this does not cover
+
+- I checked audio length and level, not intelligibility; a native speaker should
+  listen to each language, Punjabi above all (Hindi voice, no tones).
+- First Indic tap downloads ~63 MB of voice plus ~19 MB of runtime on a phone with
+  no voice of its own. Most Android phones have Google's hi/te/pa voices and skip it.
+- No spread haze in production until #37 lands `Plume.windSpeedMs`.
+- WorldCover mangroves (Sundarbans) are class 95, so `other`, same as before.
+
+### Still open
+
+- **Region pivot (North / South / West / East / All India)**, contract #37: needs
+  Jammy's and Rahul's ack before `REGIONS` changes. `india.bin` and `states.json`
+  are ready for it.
+
 ## 2026-09-29 — Mosaic System reskin (visual only)
 
 Replaced the plum / rose / cream / #4DAA57 palette and slate leftovers with the

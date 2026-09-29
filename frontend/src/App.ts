@@ -86,6 +86,46 @@ export async function demoRadar(region: Region, geo?: Geo): Promise<PipelineResu
 const IS_DEMO =
   !!import.meta.env?.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo');
 
+/**
+ * Mandatory CC-BY 4.0 ESA WorldCover attribution and the Gaussian-puff disclaimer, one tap
+ * behind a (C) button instead of a footer. The text is always in the page, only folded, so
+ * it is never removed: do not drop it while restyling (AGENTS.md).
+ */
+function Credits() {
+  const [open, setOpen] = useState(false);
+  return React.createElement(
+    'div',
+    { className: 'credits' },
+    React.createElement(
+      'div',
+      { id: 'credits-panel', className: 'credits-panel', hidden: !open },
+      React.createElement(
+        'p',
+        null,
+        '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data · Boundaries: DataMeet (Survey of India outline), Natural Earth'
+      ),
+      React.createElement(
+        'p',
+        null,
+        'Smoke dispersion modeled using a simplified Gaussian-puff approximation (not HYSPLIT).'
+      ),
+      React.createElement('p', { className: 'credits-by' }, '© Engineered by uncoalesced')
+    ),
+    React.createElement(
+      'button',
+      {
+        type: 'button',
+        className: 'credits-button',
+        'aria-label': 'Data sources and credits',
+        'aria-expanded': open,
+        'aria-controls': 'credits-panel',
+        onClick: () => setOpen((o) => !o),
+      },
+      '©'
+    )
+  );
+}
+
 export type RadarStatus = 'loading' | 'ready' | 'empty' | 'error' | 'verify';
 
 export function App() {
@@ -260,24 +300,8 @@ export function App() {
         plume: selectedPlume,
         state: selected ? states[selected.id] : undefined,
         onClose: () => setSelected(null),
-      })
-    ),
-
-    // Mandatory Attribution Footer (CC-BY 4.0 ESA WorldCover & Model Disclaimer)
-    React.createElement(
-      'footer',
-      { className: 'app-footer' },
-      React.createElement(
-        'p',
-        { className: 'footer-attribution' },
-        '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data · Boundaries: DataMeet (Survey of India outline), Natural Earth',
-        React.createElement(
-          'span',
-          { className: 'footer-disclaimer' },
-          ' · Smoke dispersion modeled using a simplified Gaussian-puff approximation (not HYSPLIT).'
-        )
-      ),
-      React.createElement('p', { className: 'footer-credit' }, '© Engineered by uncoalesced')
+      }),
+      React.createElement(Credits)
     )
   );
 }

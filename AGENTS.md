@@ -118,7 +118,8 @@ scaffold alert-subscription UI.
   blows *from*; `Plume.bearingDeg` is where smoke travels *to*. They differ by 180°.
 - **Dispersion must degrade gracefully** on calm or missing wind rather than throwing.
 - **ESA WorldCover is CC-BY 4.0** and requires visible attribution. It is in the
-  frontend footer and the README — do not remove it while restyling.
+  frontend's © credits button over the map (`Credits` in `frontend/src/App.ts`) and the
+  README — do not remove it while restyling.
 - **A land-cover lookup miss is `other`, not an error.** Only `cropland` and `forest`
   polygons exist in the mask; a classifier that throws on a miss will treat most of
   Delhi as a failure. Grassland and shrubland also read as `other`, not `forest` —
@@ -282,7 +283,7 @@ is moving fastest at 2am on the 29th, which will be you.
 
 Do not remove these while tidying or restyling:
 
-- The ESA WorldCover attribution in the frontend footer — CC-BY 4.0 requires it.
+- The ESA WorldCover attribution behind the frontend's © credits button — CC-BY 4.0 requires it.
 - The "simplified Gaussian-puff, not HYSPLIT" wording anywhere it appears.
 - Crop-burning hotspots from the rendered output — they are tagged, never hidden.
 - `"types": []` in `logic/tsconfig.json` — it is what makes a Node-only API fail the

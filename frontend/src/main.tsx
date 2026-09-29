@@ -21,3 +21,17 @@ createRoot(root).render(
     <App />
   </StrictMode>,
 );
+
+// The loading screen in index.html fills the logo in over ~1.2s (27 marks 32ms apart,
+// then the wordmark, each fill 0.32s). Let it finish once, then fade it out over the app.
+const SPLASH_FILL_MS = 1250;
+const splash = document.getElementById('splash');
+if (splash) {
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // performance.now() counts from navigation start, which is when the animation began.
+  const wait = reduced ? 0 : Math.max(0, SPLASH_FILL_MS - performance.now());
+  setTimeout(() => {
+    splash.classList.add('splash-done');
+    setTimeout(() => splash.remove(), reduced ? 0 : 400);
+  }, wait);
+}

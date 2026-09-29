@@ -37,6 +37,48 @@ Suite: logic 61/61, worker 13/13, frontend 54 pass, 0 fail. The one `not ok` is 
 
 ---
 
+## 2026-09-29 (IST) — New logo on the tab, and a loading screen that fills the logo in
+
+Joel's request: replace the old logo everywhere with the new one, and add a short loading animation in which the logo starts hollow and fills with its real colours.
+
+**Where the old logo was:** only as the tab icon, the flame in a dark circle in `frontend/public/favicon.svg`. It is linked from `frontend/index.html`. The uncommitted `404.html` in a working copy links the same file, so it picks up the new icon too. The header is plain "Madhuca" text, not an image.
+
+Built:
+- `frontend/public/favicon.svg` is now `assets/logo/favicon.svg` with its ~8 KB embedded metadata block stripped (993 bytes).
+- `frontend/public/favicon.ico` is added as a fallback, linked with `sizes="any"`.
+- The loading screen is in `frontend/index.html`, so it paints before any JavaScript arrives:
+  - it is generated from `assets/logo/madhuca-logo-transparent-for-light.svg`: all 27 marks and the wordmark, same geometry and colours
+  - each shape starts as an outline in its own green, then fills with its real colour, 32ms apart, 0.32s each, about 1.2s in all
+  - with `prefers-reduced-motion`, it shows the filled logo with no animation
+- `frontend/src/main.tsx` fades the screen out after the app renders, but not before the fill has played once, then removes it.
+
+### Checks
+
+```bash
+node --test frontend/test/splash.test.ts
+npm run typecheck && npm run build && npm test --workspaces --if-present
+```
+
+The 3 new tests in `frontend/test/splash.test.ts`:
+1. The tab icon's shapes equal the new logo's favicon: no old flame path, no metadata. The `.ico` exists.
+2. The loading screen draws exactly the logo's 28 shapes with the same geometry and colours, each outlined in its own colour, in order.
+3. The reduced-motion rule is present, and the screen is announced as loading and sits before `#root`.
+
+Suite: logic 54/54, worker 13/13, frontend 57 pass, 0 fail. The one `not ok` is the known Node 22 cancellation of the timeout test; CI runs Node 24. Typecheck and build exit 0. The emoji check found 0 lines.
+
+Browser (`npm run dev`, `/?demo`, 375x812):
+- The screen is present at 236ms.
+- The app renders underneath it.
+- By 3s the screen is gone.
+
+Frames were checked with the animation paused at 0, 500 and 1300ms: all outlines at 0; the outer ring filled with the inner marks and wordmark still outlined at 500; the full logo at 1300.
+
+Not covered:
+- The real-time feel on a low-end phone. The pane was hidden, so frames were checked paused, not played.
+- Screen-reader output beyond the `role="status"` label.
+
+---
+
 ## 2026-09-29 (IST) — ML fire-risk forecast for Telangana / AP (issue #21, offline part)
 
 Built in `ml/`: offline only, run by hand or by the manual `ml-risk` workflow.

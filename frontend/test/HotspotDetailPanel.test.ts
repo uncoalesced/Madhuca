@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   HotspotDetailPanel,
   getIntensityLabel,
+  defaultLanguage,
   generatePlainLanguageAlert,
 } from '../src/components/HotspotDetailPanel.ts';
 import type { Classification, Hotspot, Plume } from '@madhuca/logic';
@@ -97,7 +98,7 @@ test('HotspotDetailPanel renders full details and audio section when active', ()
       hotspot: MOCK_HOTSPOT,
       classification: MOCK_CROP_CLASSIFICATION,
       plume: MOCK_PLUME,
-      region: 'punjab',
+      state: 'Punjab',
       onClose: () => {},
     })
   );
@@ -134,13 +135,13 @@ test('getIntensityLabel is localized and keeps the same severity in every langua
 });
 
 test('smoke direction badge: big compass letter plus an arrow rotated to the bearing', () => {
-  const render = (plume: Plume | undefined, region: 'telangana' | 'delhi' = 'telangana') =>
+  const render = (plume: Plume | undefined, state = 'Telangana') =>
     renderToStaticMarkup(
       React.createElement(HotspotDetailPanel, {
         hotspot: MOCK_HOTSPOT,
         classification: MOCK_WILDFIRE_CLASSIFICATION,
         plume,
-        region,
+        state,
         onClose: () => {},
       }),
     );
@@ -151,7 +152,7 @@ test('smoke direction badge: big compass letter plus an arrow rotated to the bea
   assert.match(west, /class="direction-word">పడమర</, 'Telugu region shows the Telugu word under the letter');
   assert.match(west, /పొగ పడమర వైపు \(261°\)/, 'dispersion value is Telugu, not "Blowing West"');
   assert.doesNotMatch(west, /Blowing/);
-  const south = render({ bearingDeg: 187, distanceKm: 2.8, spreadDeg: 30 }, 'delhi');
+  const south = render({ bearingDeg: 187, distanceKm: 2.8, spreadDeg: 30 }, 'Delhi');
   assert.match(south, /class="direction-letter">S</);
   assert.match(south, /धुआं दक्षिण की ओर \(187°\)/);
   assert.match(render(undefined), /class="direction-letter">CALM</);
@@ -165,7 +166,7 @@ test('HotspotDetailPanel closes and reopens: null -> empty, hotspot -> dialog, n
         hotspot,
         classification: MOCK_CROP_CLASSIFICATION,
         plume: MOCK_PLUME,
-        region: 'punjab',
+        state: 'Punjab',
         onClose: () => {},
       }),
     );
@@ -176,4 +177,14 @@ test('HotspotDetailPanel closes and reopens: null -> empty, hotspot -> dialog, n
   assert.doesNotMatch(closed, /role="dialog"/);
   assert.match(closed, /hotspot-panel-empty/);
   assert.match(render(MOCK_HOTSPOT), /role="dialog"/);
+});
+
+test('the panel opens in the language of the state the fire is in', () => {
+  assert.equal(defaultLanguage('Punjab'), 'pa');
+  assert.equal(defaultLanguage('Telangana'), 'te');
+  assert.equal(defaultLanguage('Andhra Pradesh'), 'te');
+  assert.equal(defaultLanguage('Uttar Pradesh'), 'hi');
+  assert.equal(defaultLanguage('Rajasthan'), 'hi');
+  assert.equal(defaultLanguage('Kerala'), 'en', 'no Malayalam alert yet: English, not Hindi');
+  assert.equal(defaultLanguage(undefined), 'en');
 });

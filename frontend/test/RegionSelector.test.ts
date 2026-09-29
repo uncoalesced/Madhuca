@@ -5,9 +5,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { RegionSelector, REGION_LABELS } from '../src/components/RegionSelector.ts';
 import { REGIONS, type Region } from '@madhuca/logic';
 
-test('RegionSelector renders all 4 regions with English and native names', () => {
+test('RegionSelector renders all 5 regions with English and native names', () => {
   const html = renderToStaticMarkup(
-    React.createElement(RegionSelector, { region: 'punjab', onChange: () => {} })
+    React.createElement(RegionSelector, { region: 'north', onChange: () => {} })
   );
 
   for (const region of REGIONS) {
@@ -18,7 +18,7 @@ test('RegionSelector renders all 4 regions with English and native names', () =>
 });
 
 test('RegionSelector marks the selected region as active with aria-selected="true"', () => {
-  const selectedRegion: Region = 'telangana';
+  const selectedRegion: Region = 'india';
   const html = renderToStaticMarkup(
     React.createElement(RegionSelector, { region: selectedRegion, onChange: () => {} })
   );
@@ -35,7 +35,7 @@ test('RegionSelector marks the selected region as active with aria-selected="tru
 
 test('RegionSelector renders proper ARIA role structure for navigation', () => {
   const html = renderToStaticMarkup(
-    React.createElement(RegionSelector, { region: 'bihar', onChange: () => {} })
+    React.createElement(RegionSelector, { region: 'east', onChange: () => {} })
   );
 
   assert.ok(html.includes('role="tablist"'), 'Expected tablist container role');

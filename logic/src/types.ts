@@ -1,8 +1,11 @@
 // Shared contract types. Rahul's frontend and Jammy's implementations both build
 // against these — change them here, not in a local copy, so the two don't drift.
 
-/** v1 launch regions (docs/MASTER.md §2). Not nationwide. */
-export const REGIONS = ['punjab', 'bihar', 'delhi', 'telangana'] as const;
+/**
+ * Zones built from whole states (docs/MASTER.md §2, contract #37); 'india' is all of them.
+ * Which states make each zone: ZONE_STATES in logic/src/geo.ts.
+ */
+export const REGIONS = ['north', 'south', 'west', 'east', 'india'] as const;
 export type Region = (typeof REGIONS)[number];
 
 /** One active-fire detection from NASA FIRMS (MODIS/VIIRS). */
@@ -44,6 +47,8 @@ export interface Plume {
   distanceKm: number;
   /** Half-angle of the plume cone in degrees — lateral spread. */
   spreadDeg: number;
+  /** 10 m wind speed the plume was computed from, m/s. Absent when wind was missing. */
+  windSpeedMs?: number;
 }
 
 export type LandCover = 'cropland' | 'forest' | 'other';

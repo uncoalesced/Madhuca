@@ -32,8 +32,15 @@ DEG_PER_PX = 0.01  # about 1 km: finer than any state border simplification
 
 # Which states each region's layer is clipped to.
 REGION_STATES = {
-    "telangana": ["Telangana", "Andhra Pradesh"],
+    "telangana": ["Telangana", "Andhra Pradesh"],  # the grid published before the zones
+    # Zones, as ZONE_STATES in logic/src/geo.ts.
+    "north": ["Jammu & Kashmir", "Ladakh", "Himachal Pradesh", "Punjab", "Chandigarh", "Haryana", "Delhi", "Uttarakhand", "Uttar Pradesh"],
+    "west": ["Rajasthan", "Gujarat", "Maharashtra", "Goa", "Dadra and Nagar Haveli and Daman and Diu", "Madhya Pradesh"],
+    "east": ["Bihar", "Jharkhand", "West Bengal", "Odisha", "Chhattisgarh", "Assam", "Arunachal Pradesh", "Manipur",
+             "Meghalaya", "Mizoram", "Nagaland", "Tripura", "Sikkim", "Andaman & Nicobar"],
+    "south": ["Andhra Pradesh", "Telangana", "Karnataka", "Tamil Nadu", "Kerala", "Puducherry", "Lakshadweep"],
 }
+REGION_STATES["india"] = [s for z in ("north", "west", "east", "south") for s in REGION_STATES[z]]
 
 # (p, RGB) stops: the ramp MapView used for the cells.
 RAMP = [(0.0, (0xF1, 0xF3, 0xF0)), (0.02, (0xF1, 0x91, 0x43)), (0.1, (0xEF, 0x2D, 0x56))]

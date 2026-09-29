@@ -25,9 +25,9 @@ Encoding (the `RiskGrid` shape proposed in contract issue #20):
 
 ```bash
 pip install -r ml/requirements.txt
-node ml/export_cells.ts telangana                                   # box, India mask, land-cover shares per cell
-FIRMS_MAP_KEY=... python ml/fetch_firms.py telangana 2019-01-01 2026-09-28
-python ml/train_risk.py telangana 2026-09-29                        # metrics, then ml/out/telangana.json
+node ml/export_cells.ts south                                       # box, India mask, land-cover shares per cell
+FIRMS_MAP_KEY=... python ml/fetch_firms.py south 2019-01-01 2026-09-28
+python ml/train_risk.py south 2026-09-29                            # metrics, then ml/out/south.json
 ```
 
 Or use the manual `ml-risk` workflow (`.github/workflows/ml-risk.yml`). It needs a `FIRMS_MAP_KEY` repository secret, and it can publish the grid to `frontend/public/risk/` when run with `publish=true`.
@@ -38,7 +38,7 @@ Or use the manual `ml-risk` workflow (`.github/workflows/ml-risk.yml`). It needs
 |---|---|---|
 | Fire detections | NASA FIRMS, VIIRS S-NPP 375m. Standard archive (`VIIRS_SNPP_SP`) to 2026-06-30, near-real-time (`VIIRS_SNPP_NRT`) after | NASA open data; cite "NASA FIRMS" |
 | Land cover | ESA WorldCover 2021 via our masks (`frontend/public/landcover/`) | CC-BY 4.0, attributed in the app footer |
-| India border | Natural Earth 1:10m (`logic/src/india-border.ts`) | Public domain |
+| India and state borders | DataMeet States/Admin2 via `frontend/public/boundaries/states.bin` (`pipeline/boundaries.mjs`) | CC-BY / MIT, attributed in the app footer |
 
 Filters:
 - Low-confidence detections are dropped.

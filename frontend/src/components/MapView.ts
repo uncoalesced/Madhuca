@@ -29,6 +29,8 @@ export interface MapViewProps {
   onSelect: (hotspot: Hotspot) => void;
   /** URL of the region's fire-risk grid (frontend/public/risk/), when one exists. */
   riskUrl?: string;
+  /** What the grid covers, said in the note: it can be smaller than the region. */
+  riskArea?: string;
 }
 
 /** Determines high-contrast marker pin color based on fire classification. */
@@ -82,8 +84,7 @@ export function createPlumeFeatureCollection(
 export function createFireFeatureCollection(
   hotspots: Hotspot[],
   plumes?: Record<string, Plume>,
-  classifications?: Record<string, Classification>,
-  windSpeeds?: Record<string, number>
+  classifications?: Record<string, Classification>
 ): GeoJSON.FeatureCollection<GeoJSON.Polygon> {
   const features: GeoJSON.Feature<GeoJSON.Polygon>[] = [];
   for (const hs of hotspots) {
@@ -95,7 +96,7 @@ export function createFireFeatureCollection(
     });
     const plume = plumes?.[hs.id];
     if (!plume || isCalmPlume(plume)) continue;
-    spreadWedges(hs.lat, hs.lon, plume.bearingDeg, windSpeeds?.[hs.id]).forEach((geometry, i) =>
+    spreadWedges(hs.lat, hs.lon, plume.bearingDeg, plume.windSpeedMs).forEach((geometry, i) =>
       features.push({ type: 'Feature', properties: { hotspotId: hs.id, band: i + 1, color }, geometry })
     );
   }
@@ -195,6 +196,7 @@ export function MapView({
   selectedId,
   onSelect,
   riskUrl,
+  riskArea,
 }: MapViewProps) {
   const [riskOn, setRiskOn] = useState(false);
   const [farmlandOn, setFarmlandOn] = useState(false);
@@ -207,8 +209,6 @@ export function MapView({
   // style finishes loading, and a closure over the first render would draw nothing.
   const plumeDataRef = useRef(createPlumeFeatureCollection(hotspots, plumes, classifications));
   plumeDataRef.current = createPlumeFeatureCollection(hotspots, plumes, classifications);
-  // ponytail: no wind speeds until Plume.windSpeedMs lands (contract issue #37); until
-  // then only the detection footprint is drawn, never a guessed spread.
   const fireDataRef = useRef(createFireFeatureCollection(hotspots, plumes, classifications));
   fireDataRef.current = createFireFeatureCollection(hotspots, plumes, classifications);
 
@@ -512,7 +512,8 @@ export function MapView({
         React.createElement(
           'p',
           { className: 'risk-note', title: riskGrid.model },
-          `Chance of any fire, crop burning included, ${riskGrid.validFrom} to ${riskGrid.validTo}. ` +
+          `${riskArea ? `Covers ${riskArea} only. ` : ''}` +
+            `Chance of any fire, crop burning included, ${riskGrid.validFrom} to ${riskGrid.validTo}. ` +
             'Experimental statistical estimate. Low is not an all-clear. ' +
             `Model: ${riskGrid.model.split(' (')[0]}.`
         )

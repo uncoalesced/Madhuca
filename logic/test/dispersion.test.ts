@@ -109,3 +109,11 @@ test('keeps bearingDeg in [0, 360) when rounding lands on the wrap point', () =>
     assert.ok(b >= 0 && b < 360, `direction ${d} gave bearing ${b}`);
   }
 });
+
+test('Plume.windSpeedMs carries the measured wind, calm included, and is absent when wind is missing', () => {
+  const hs = { id: 'h', lat: 30, lon: 75, frp: 20, confidence: 'n', acquiredAt: '2026-10-20T08:00:00Z', satellite: 'N' };
+  const at = (speedMs: number) => ({ speedMs, directionDeg: 270, observedAt: '2026-10-20T08:00:00Z' });
+  assert.equal(computeDispersion(hs, at(5)).windSpeedMs, 5);
+  assert.equal(computeDispersion(hs, at(0.2)).windSpeedMs, 0.2);
+  assert.equal('windSpeedMs' in computeDispersion(hs, null), false);
+});

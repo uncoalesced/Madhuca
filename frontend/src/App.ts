@@ -2,13 +2,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   type Classification,
+  type Geo,
   type Hotspot,
-  type LandCoverMask,
   type Plume,
   type RadarResult,
   type Region,
   classifyHotspot,
   computeDispersion,
+  decodeLandCoverGrid,
+  decodeStateGrid,
 } from '@madhuca/logic';
 import { MapView } from './components/MapView.ts';
 import { RegionSelector, REGION_LABELS } from './components/RegionSelector.ts';
@@ -32,7 +34,7 @@ export async function fetchRadar(
   fetchImpl: typeof fetch = fetch,
   timeoutMs = 25_000,
 ): Promise<PipelineResult> {
-  const empty = { hotspots: [], plumes: {}, classifications: {} };
+  const empty = { hotspots: [], plumes: {}, classifications: {}, states: {} };
   // Without a deadline a stalled upstream left "Scanning..." up forever, which reads
   // as a scan still in progress. The signal also cuts off a stalled body read below.
   const signal = AbortSignal.timeout(timeoutMs);
@@ -54,24 +56,29 @@ export async function fetchRadar(
   if (!res.ok || !body || !Array.isArray(body.hotspots)) {
     return { ...empty, error: body?.error ?? `Radar service responded ${res.status}. This is not an all-clear.` };
   }
-  return { hotspots: body.hotspots, plumes: body.plumes, classifications: body.classifications };
+  return { hotspots: body.hotspots, plumes: body.plumes, classifications: body.classifications, states: body.states ?? {} };
 }
 
-/** Dev-only `?demo`: fake hotspots through the real dispersion (calm wind) and classifier. */
-export async function demoRadar(region: Region, mask?: LandCoverMask): Promise<PipelineResult> {
-  const landCover: LandCoverMask =
-    mask ??
-    (await fetch(`/landcover/${region}.json`)
-      .then((r) => (r.ok ? (r.json() as Promise<LandCoverMask>) : null))
-      .catch(() => null)) ?? { region, features: [] };
+/** Dev-only `?demo`: fake hotspots through the real dispersion (calm wind), grids and classifier. */
+export async function demoRadar(region: Region, geo?: Geo): Promise<PipelineResult> {
+  const bytes = (path: string) => fetch(path).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${path} ${r.status}`))));
+  const grids: Geo =
+    geo ??
+    (await Promise.all([bytes('/boundaries/states.bin'), bytes('/landcover/india.bin')]).then(([s, l]) => ({
+      stateAt: decodeStateGrid(s),
+      landCoverAt: decodeLandCoverGrid(l),
+    })));
   const hotspots: Hotspot[] = demoHotspots(region);
   const plumes: Record<string, Plume> = {};
   const classifications: Record<string, Classification> = {};
+  const states: Record<string, string> = {};
   for (const hs of hotspots) {
+    const state = grids.stateAt(hs.lon, hs.lat);
+    if (state) states[hs.id] = state;
     plumes[hs.id] = computeDispersion(hs, null);
-    classifications[hs.id] = classifyHotspot(hs, landCover);
+    classifications[hs.id] = classifyHotspot(hs, grids.landCoverAt(hs.lon, hs.lat), state);
   }
-  return { hotspots, plumes, classifications };
+  return { hotspots, plumes, classifications, states };
 }
 
 // `?demo` in `npm run dev` swaps FIRMS for fake hotspots (frontend/src/demoHotspots.ts).
@@ -82,10 +89,11 @@ const IS_DEMO =
 export type RadarStatus = 'loading' | 'ready' | 'empty' | 'error' | 'verify';
 
 export function App() {
-  const [region, setRegion] = useState<Region>('punjab');
+  const [region, setRegion] = useState<Region>('north');
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
   const [plumes, setPlumes] = useState<Record<string, Plume>>({});
   const [classifications, setClassifications] = useState<Record<string, Classification>>({});
+  const [states, setStates] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Hotspot | null>(null);
   const [status, setStatus] = useState<RadarStatus>('loading');
   const [progressMsg, setProgressMsg] = useState<string>('Initializing satellite radar...');
@@ -104,7 +112,7 @@ export function App() {
     setSelected(null);
 
     try {
-      setProgressMsg(`Scanning ${targetRegion} for active fires...`);
+      setProgressMsg(`Scanning ${REGION_LABELS[targetRegion].name} for active fires...`);
       const result = IS_DEMO ? await demoRadar(targetRegion) : await fetchRadar(targetRegion);
       if (scan !== latestScan.current) return;
 
@@ -122,6 +130,7 @@ export function App() {
       setHotspots(result.hotspots);
       setPlumes(result.plumes);
       setClassifications(result.classifications);
+      setStates(result.states);
 
       if (result.hotspots.length === 0) {
         setStatus('empty');
@@ -239,14 +248,15 @@ export function App() {
         classifications,
         selectedId: selected?.id,
         onSelect: setSelected,
-        // ponytail: only Telangana / AP has a grid (issue #21); list more here as ml/ publishes them.
-        riskUrl: region === 'telangana' ? '/risk/telangana.json' : undefined,
+        // ponytail: the only published grid is Telangana / AP (issue #21); list more here as ml/ publishes them.
+        riskUrl: region === 'south' || region === 'india' ? '/risk/telangana.json' : undefined,
+        riskArea: 'Telangana and Andhra Pradesh',
       }),
       React.createElement(HotspotDetailPanel, {
         hotspot: selected,
         classification: selectedClassification,
         plume: selectedPlume,
-        region,
+        state: selected ? states[selected.id] : undefined,
         onClose: () => setSelected(null),
       })
     ),

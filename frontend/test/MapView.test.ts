@@ -83,7 +83,7 @@ test('createPlumeFeatureCollection returns empty collection when plumes is undef
 test('MapView renders container and accessible legend markup', () => {
   const html = renderToStaticMarkup(
     React.createElement(MapView, {
-      region: 'punjab',
+      region: 'north',
       hotspots: MOCK_HOTSPOTS,
       plumes: MOCK_PLUMES,
       classifications: MOCK_CLASSIFICATIONS,
@@ -92,14 +92,13 @@ test('MapView renders container and accessible legend markup', () => {
   );
 
   assert.ok(html.includes('map-view-container'), 'Expected map view container');
-  assert.ok(html.includes('Map of punjab active fire radar'), 'Expected accessible region map label');
+  assert.ok(html.includes('Map of north active fire radar'), 'Expected accessible region map label');
   assert.ok(html.includes('Likely Stubble Burning'), 'Expected stubble burning legend label');
   assert.ok(html.includes('Likely Wildfire'), 'Expected wildfire legend label');
 });
 
-test('REGION_BBOX covers valid bounds for all 4 launch regions', () => {
-  const regions = ['punjab', 'bihar', 'delhi', 'telangana'] as const;
-  for (const r of regions) {
+test('REGION_BBOX covers valid bounds for all five regions', () => {
+  for (const r of ['north', 'south', 'west', 'east', 'india'] as const) {
     const [west, south, east, north] = REGION_BBOX[r];
     assert.ok(west < east, `${r} west (${west}) must be < east (${east})`);
     assert.ok(south < north, `${r} south (${south}) must be < north (${north})`);
@@ -126,7 +125,15 @@ test('fire overlay: one footprint per hotspot; spread haze only with a known win
   assert.ok(noWind.features.every((f) => f.properties?.band === 0));
   assert.equal(noWind.features[1]?.properties?.color, '#EF2D56', 'wildfire footprint is red');
 
-  const windy = createFireFeatureCollection(hotspots, plumes, MOCK_CLASSIFICATIONS, { 'hs-1': 3, 'hs-2': 3, 'hs-3': 0.2 });
+  const windy = createFireFeatureCollection(
+    hotspots,
+    {
+      'hs-1': { ...plumes['hs-1']!, windSpeedMs: 3 },
+      'hs-2': { ...plumes['hs-2']!, windSpeedMs: 3 },
+      'hs-3': { ...plumes['hs-3']!, windSpeedMs: 0.2 },
+    },
+    MOCK_CLASSIFICATIONS
+  );
   assert.equal(windy.features.filter((f) => f.properties?.band === 0).length, 3);
   assert.equal(windy.features.filter((f) => f.properties?.band !== 0).length, 6, '3 haze bands for each of the 2 windy fires; calm hs-3 gets none');
 
@@ -146,14 +153,14 @@ test('fireSpreadKm: 10% of wind speed over 3 h, zero when calm or unknown', () =
 });
 
 test('legend explains fire, possible spread and smoke', () => {
-  const html = renderToStaticMarkup(React.createElement(MapView, { region: 'punjab', hotspots: [], onSelect: () => {} }));
+  const html = renderToStaticMarkup(React.createElement(MapView, { region: 'north', hotspots: [], onSelect: () => {} }));
   assert.match(html, /Possible spread \(3 h\)/);
   assert.match(html, /not a fire-spread model/);
   assert.match(html, /Smoke drift/);
 });
 
 test('farmland toggle is always offered, and its image box matches the national land-cover grid', async () => {
-  const html = renderToStaticMarkup(React.createElement(MapView, { region: 'delhi', hotspots: [], onSelect: () => {} }));
+  const html = renderToStaticMarkup(React.createElement(MapView, { region: 'west', hotspots: [], onSelect: () => {} }));
   assert.match(html, /Show farmland/);
   const { readFileSync } = await import('node:fs');
   const bin = readFileSync(new URL('../public/landcover/india.bin', import.meta.url));
@@ -167,7 +174,7 @@ test('farmland toggle is always offered, and its image box matches the national 
 });
 
 test('risk toggle renders only when the region has a risk grid', () => {
-  const base = { region: 'telangana' as const, hotspots: [], onSelect: () => {} };
+  const base = { region: 'south' as const, hotspots: [], onSelect: () => {} };
   const withGrid = renderToStaticMarkup(React.createElement(MapView, { ...base, riskUrl: '/risk/telangana.json' }));
   const without = renderToStaticMarkup(React.createElement(MapView, base));
   assert.match(withGrid, /Show fire risk/);

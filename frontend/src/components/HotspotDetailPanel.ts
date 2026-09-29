@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import type { Classification, Hotspot, Plume, Region } from '@madhuca/logic';
+import type { Classification, Hotspot, Plume } from '@madhuca/logic';
+import { TOWNS } from '../towns.ts';
 import { TtsButton } from './TtsButton.ts';
 import {
   bearingToAbbrev,
@@ -9,26 +10,6 @@ import {
   getPlumeSummary,
   isCalmPlume,
 } from '../utils/plumeGeometry.ts';
-
-// District towns in and around the four regions, approximate centre coordinates.
-// ponytail: fixed list, swap for a gazetteer if village-level labels (MASTER.md 5.3) land.
-const TOWNS: ReadonlyArray<readonly [string, number, number]> = [
-  ['Amritsar', 31.634, 74.872], ['Ludhiana', 30.901, 75.857], ['Jalandhar', 31.326, 75.576],
-  ['Patiala', 30.34, 76.386], ['Bathinda', 30.211, 74.945], ['Firozpur', 30.925, 74.613],
-  ['Sangrur', 30.245, 75.844], ['Moga', 30.817, 75.174], ['Gurdaspur', 32.041, 75.405],
-  ['Hoshiarpur', 31.532, 75.912],
-  ['Patna', 25.594, 85.137], ['Gaya', 24.796, 85.008], ['Bhagalpur', 25.244, 86.972],
-  ['Muzaffarpur', 26.12, 85.39], ['Darbhanga', 26.152, 85.897], ['Purnia', 25.778, 87.475],
-  ['Ara', 25.556, 84.663], ['Begusarai', 25.418, 86.133], ['Chhapra', 25.78, 84.747],
-  ['Motihari', 26.648, 84.917], ['Sasaram', 24.953, 84.031],
-  ['New Delhi', 28.614, 77.209], ['Narela', 28.853, 77.093], ['Najafgarh', 28.609, 76.98],
-  ['Rohini', 28.736, 77.113], ['Shahdara', 28.673, 77.289], ['Gurugram', 28.459, 77.027],
-  ['Noida', 28.535, 77.391], ['Ghaziabad', 28.669, 77.454], ['Faridabad', 28.408, 77.317],
-  ['Hyderabad', 17.385, 78.487], ['Warangal', 17.969, 79.594], ['Karimnagar', 18.438, 79.129],
-  ['Nizamabad', 18.672, 78.094], ['Khammam', 17.247, 80.151], ['Adilabad', 19.664, 78.532],
-  ['Mahabubnagar', 16.737, 77.988], ['Nalgonda', 17.058, 79.267], ['Mancherial', 18.873, 79.463],
-  ['Kothagudem', 17.551, 80.619], ['Bhadrachalam', 17.669, 80.893],
-];
 
 /** "12 km NE of Ludhiana": where the fire sits relative to the closest listed town. */
 export function nearestTownText(lat: number, lon: number): string {
@@ -45,9 +26,23 @@ export interface HotspotDetailPanelProps {
   hotspot: Hotspot | null;
   classification?: Classification;
   plume?: Plume;
-  region?: Region;
+  /** State or UT the fire is in (from the radar result); picks the alert's opening language. */
+  state?: string;
   onClose: () => void;
 }
+
+/** Alert language a fire's panel opens in: the state's language where we have one, else Hindi or English. */
+export function defaultLanguage(state: string | undefined): 'hi' | 'pa' | 'te' | 'en' {
+  if (state === 'Punjab') return 'pa';
+  if (state === 'Telangana' || state === 'Andhra Pradesh') return 'te';
+  if (state !== undefined && HINDI_STATES.includes(state)) return 'hi';
+  return 'en';
+}
+
+const HINDI_STATES: readonly string[] = [
+  'Delhi', 'Haryana', 'Uttar Pradesh', 'Bihar', 'Jharkhand', 'Madhya Pradesh', 'Rajasthan',
+  'Chhattisgarh', 'Uttarakhand', 'Himachal Pradesh', 'Chandigarh',
+];
 
 type Severity = 'low' | 'moderate' | 'high' | 'severe';
 
@@ -180,11 +175,11 @@ export function HotspotDetailPanel({
   hotspot,
   classification,
   plume,
-  region,
+  state,
   onClose,
 }: HotspotDetailPanelProps) {
   // Hooks run before any early return so the hook count never changes between renders.
-  const defaultLang = region === 'punjab' ? 'pa' : region === 'telangana' ? 'te' : 'hi';
+  const defaultLang = defaultLanguage(state);
   const [selectedLang, setSelectedLang] = useState<string>(defaultLang);
   useEffect(() => setSelectedLang(defaultLang), [hotspot?.id, defaultLang]);
 

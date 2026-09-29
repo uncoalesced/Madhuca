@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       region:
-        description: 'Region to model. Telangana / AP is the priority (issue #21).'
+        description: 'Region to model: north, south, west, east or india.'
         required: false
-        default: 'telangana'
+        default: 'south'
       forecast_date:
         description: 'First day of the 14-day forecast (YYYY-MM-DD). FIRMS data is fetched up to the day before.'
         required: true

@@ -20,6 +20,43 @@ export async function fetchWind(lat: number, lon: number): Promise<Wind> {
   return parseWind(await response.json());
 }
 
+/** Locations per Open-Meteo request. Keeps the URL short and the request count low. */
+export const WIND_BATCH = 100;
+
+/**
+ * Wind for many coordinates, WIND_BATCH per request (Open-Meteo takes comma lists and
+ * answers with an array). A whole-India scan has hundreds of wind cells, and the
+ * Workers free tier allows 50 subrequests per request, so one call per cell cannot work.
+ * A failed batch gives null for its points; the caller treats that as missing wind.
+ */
+export async function fetchWinds(points: ReadonlyArray<readonly [lat: number, lon: number]>): Promise<(Wind | null)[]> {
+  const out: (Wind | null)[] = new Array(points.length).fill(null);
+  const batches: Promise<void>[] = [];
+  for (let from = 0; from < points.length; from += WIND_BATCH) {
+    const batch = points.slice(from, from + WIND_BATCH);
+    const url =
+      `${OPEN_METEO_GFS}?latitude=${batch.map((p) => p[0]).join(',')}&longitude=${batch.map((p) => p[1]).join(',')}` +
+      `&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=ms`;
+    batches.push(
+      fetch(url)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((body: unknown) => {
+          const list = Array.isArray(body) ? body : body ? [body] : [];
+          batch.forEach((_, i) => {
+            try {
+              out[from + i] = parseWind(list[i]);
+            } catch {
+              out[from + i] = null;
+            }
+          });
+        })
+        .catch(() => undefined),
+    );
+  }
+  await Promise.all(batches);
+  return out;
+}
+
 /**
  * Pull the `current` block out of an Open-Meteo response.
  *

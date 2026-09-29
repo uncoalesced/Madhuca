@@ -14,10 +14,12 @@ const HEADER =
 function env(overrides: Partial<Env> = {}): Env {
   return {
     FIRMS_MAP_KEY: 'test-key',
-    // The real committed Delhi index, the only region these tests scan.
+    // The real committed grids, served by path as the ASSETS binding does.
     ASSETS: {
-      fetch: async () =>
-        new Response(readFileSync(join(import.meta.dirname, '..', '..', 'frontend', 'public', 'landcover', 'delhi.bin'))),
+      fetch: async (input) =>
+        new Response(
+          readFileSync(join(import.meta.dirname, '..', '..', 'frontend', 'public', new URL(typeof input === 'string' ? input : input.url).pathname)),
+        ),
     },
     RADAR_LIMITER: { limit: async () => ({ success: true }) },
     TURNSTILE_SECRET: SECRET,
@@ -43,7 +45,7 @@ async function withStubbedFetch<T>(handler: (url: string, init?: RequestInit) =>
 const now = () => Math.floor(Date.now() / 1000);
 const cookiePair = (setCookie: string) => setCookie.split(';')[0]!;
 const radar = (e: Env, cookie?: string) =>
-  worker.fetch(new Request('http://localhost/api/radar?region=delhi', cookie ? { headers: { cookie } } : {}), e);
+  worker.fetch(new Request('http://localhost/api/radar?region=north', cookie ? { headers: { cookie } } : {}), e);
 const verify = (e: Env, body: unknown) =>
   worker.fetch(
     new Request('http://localhost/api/verify', {
@@ -87,7 +89,7 @@ test('a passed Turnstile check sets a session cookie that then unlocks /api/rada
     () => radar(env(), cookiePair(setCookie)),
   );
   assert.equal(scan.status, 200);
-  assert.deepEqual(await scan.json(), { hotspots: [], plumes: {}, classifications: {} });
+  assert.deepEqual(await scan.json(), { hotspots: [], plumes: {}, classifications: {}, states: {} });
 });
 
 test('a failed Turnstile check is a 403 with no cookie', async () => {

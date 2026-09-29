@@ -4,14 +4,13 @@
 //
 // Writes ml/data/<region>-cells.json: the region box (REGION_BBOX, so the model grid
 // and the app can never disagree), and for every 0.1 degree cell, row-major from the
-// south-west corner, whether it lies in India (insideIndia, the same check that drops
-// foreign FIRMS rows) and the share of a 5 x 5 sample of points the classifier's own
-// land-cover lookup puts in forest and cropland. Offline only.
+// south-west corner, the share of a 5 x 5 sample of points inside the region's states
+// (the same state grid that drops foreign FIRMS rows) and the share the classifier's
+// own land-cover grid puts in forest and cropland. Offline only.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { classifyHotspot, REGION_BBOX, REGIONS, type LandCoverMask, type Region } from '@madhuca/logic';
-import { insideIndia } from '../logic/src/hotspots.ts';
+import { decodeLandCoverGrid, decodeStateGrid, inRegion, REGION_BBOX, REGIONS, type Region } from '@madhuca/logic';
 
 export const CELL_DEG = 0.1;
 const SAMPLES = 5;
@@ -20,7 +19,12 @@ const region = process.argv[2] as Region;
 if (!REGIONS.includes(region)) throw new Error(`usage: node ml/export_cells.ts <${REGIONS.join('|')}>`);
 
 const root = join(import.meta.dirname, '..');
-const mask = JSON.parse(readFileSync(join(root, 'frontend', 'public', 'landcover', `${region}.json`), 'utf8')) as LandCoverMask;
+const bytes = (...path: string[]) => {
+  const b = readFileSync(join(root, 'frontend', 'public', ...path));
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+};
+const stateAt = decodeStateGrid(bytes('boundaries', 'states.bin'));
+const landCoverAt = decodeLandCoverGrid(bytes('landcover', 'india.bin'));
 const [w, s, e, n] = REGION_BBOX[region];
 // Rounded so 8.1 / 0.1 is 81, not 80.99999.
 const cols = Math.ceil(Math.round(((e - w) / CELL_DEG) * 1e6) / 1e6);
@@ -40,12 +44,9 @@ for (let r = 0; r < rows; r++) {
       for (let j = 0; j < SAMPLES; j++) {
         const lon = x0 + ((i + 0.5) / SAMPLES) * CELL_DEG;
         const lat = y0 + ((j + 0.5) / SAMPLES) * CELL_DEG;
-        if (!insideIndia(region, lon, lat)) continue;
+        if (!inRegion(region, stateAt(lon, lat))) continue;
         inIndia++;
-        const lc = classifyHotspot(
-          { id: 'cell', lat, lon, frp: 10, confidence: 'n', acquiredAt: '2026-01-01T00:00:00Z', satellite: 'N' },
-          mask,
-        ).landCover;
+        const lc = landCoverAt(lon, lat);
         if (lc === 'forest') f++;
         else if (lc === 'cropland') k++;
       }

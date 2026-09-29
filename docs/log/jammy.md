@@ -2,6 +2,29 @@
 
 Log finished, *tested* work here, newest entry on top. Format: date (IST), what was built, how it was verified (include the test command and what passing looked like).
 
+## 2026-09-29 (IST) — Shipped: a real 404 page for unknown paths
+
+I did not write this: `frontend/public/404.html` and the `worker/wrangler.jsonc` change were uncommitted in the local working copy. They were shipped at the user's request, after reading and testing them.
+- `404.html`: a standalone page with the site's header, tokens and fonts. The requested path is inserted with `textContent`, so there is no injection.
+- `wrangler.jsonc`: `not_found_handling` changes from `single-page-application` to `404-page`, so an unknown path gets a real 404 instead of the map. The app has no client-side routes (no router dependency; nothing in `frontend/src` reads the path), so no page relies on the old fallback.
+
+### Check
+
+`npm run build`, then `npx --prefix worker wrangler dev --config worker/wrangler.jsonc --port 8787`, then curl:
+```
+/                 HTTP 200  text/html  app, with the loading screen
+/?demo            HTTP 200  text/html  app
+/does-not-exist   HTTP 404  text/html  "Nothing on the radar here"
+/assets/nope.js   HTTP 404  text/html  "Nothing on the radar here"
+/favicon.svg      HTTP 200  image/svg+xml
+/favicon.ico      HTTP 200  image/vnd.microsoft.icon
+/api/radar?region=south  HTTP 403  application/json  {"verify":true}  (Worker unchanged)
+/api/other        HTTP 404  application/json  (Worker's own JSON 404, unchanged)
+```
+Not covered: the deployed site, which still needs a deploy.
+
+---
+
 ## 2026-09-29 (IST) — Contract #20 types, the risk-grid validator, the spread stub and the classifier plan
 
 Joel agreed the #20 shape on 29 Sept and scoped the classifier as a plan only. Built:

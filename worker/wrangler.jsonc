@@ -16,7 +16,9 @@
   "assets": {
     "directory": "../frontend/dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
+    // The app has no client-side routes, so an unknown path gets frontend/public/404.html
+    // with a real 404 status instead of the map.
+    "not_found_handling": "404-page",
     "run_worker_first": ["/api/*"]
   },
   // Per-IP rate limit on /api/radar. A real user makes about one request per region

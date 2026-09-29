@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" />
+    <title>Madhuca | page not found</title>
+    <!-- Served by the Worker's assets binding for any unknown path (wrangler.jsonc
+         not_found_handling: "404-page"). Standalone: no bundle, same tokens as index.css. -->
+    <style>
+      :root {
+        --green-shade: #5D6E48;
+        --green: #748E54;
+        --green-tint: #A4B68F;
+        --graphite: #333333;
+        --porcelain: #FDFFFC;
+        --mist: #F1F3F0;
+        --line: #DFE0DE;
+        --muted-ink: #767976;
+        --line-dark: #4B4B4B;
+        --muted-ink-dark: #9A9B99;
+        --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+        --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --radius-s: 4px;
+        --radius-m: 10px;
+        font-family: var(--font-body);
+        font-size: 16px;
+        color: var(--graphite);
+        background-color: var(--porcelain);
+        line-height: 1.6;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        background-color: var(--porcelain);
+      }
+      .app-header {
+        background-color: var(--graphite);
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--line-dark);
+      }
+      .brand-container { display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }
+      .brand-title {
+        font-family: var(--font-mono);
+        font-size: 1.3rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        line-height: 1.2;
+        color: var(--green-tint);
+        text-decoration: none;
+      }
+      .brand-subtitle {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted-ink-dark);
+      }
+      main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+        background-color: var(--mist);
+      }
+      .card {
+        width: 100%;
+        max-width: 26rem;
+        background-color: var(--porcelain);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-m);
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .code {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted-ink);
+      }
+      h1 {
+        font-family: var(--font-mono);
+        font-size: 1.3rem;
+        font-weight: 700;
+        line-height: 1.3;
+        color: var(--green-shade);
+      }
+      p { color: var(--graphite); }
+      .path {
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        background-color: var(--mist);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-s);
+        padding: 0.35rem 0.5rem;
+        overflow-wrap: anywhere;
+        color: var(--muted-ink);
+      }
+      .path:empty { display: none; }
+      .button {
+        align-self: flex-start;
+        margin-top: 0.25rem;
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--porcelain);
+        background-color: var(--green);
+        border-radius: var(--radius-s);
+        padding: 0.55rem 1rem;
+        text-decoration: none;
+      }
+      .button:hover { background-color: var(--green-shade); }
+      .button:focus-visible, .brand-title:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+      .app-footer {
+        background-color: var(--graphite);
+        color: var(--muted-ink-dark);
+        padding: 0.3rem 1rem;
+        font-size: 0.68rem;
+        border-top: 1px solid var(--line-dark);
+        font-family: var(--font-mono);
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand-container">
+        <a class="brand-title" href="/">Madhuca</a>
+        <span class="brand-subtitle">Autonomous Stubble &amp; Biomass Fire Early-Warning Radar</span>
+      </div>
+    </header>
+    <main>
+      <section class="card" aria-labelledby="nf-title">
+        <span class="code">Error 404</span>
+        <h1 id="nf-title">Nothing on the radar here</h1>
+        <p>This page does not exist. The fire map lives on the home page.</p>
+        <code class="path" id="nf-path"></code>
+        <a class="button" href="/">Open the radar</a>
+      </section>
+    </main>
+    <footer class="app-footer">
+      <p>&copy; Engineered by uncoalesced</p>
+    </footer>
+    <script>
+      document.getElementById('nf-path').textContent = location.pathname;
+    </script>
+  </body>
+</html>

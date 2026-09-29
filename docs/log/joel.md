@@ -4,6 +4,31 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-29 — Mosaic System reskin (visual only)
+
+Replaced the plum / rose / cream / #4DAA57 palette and slate leftovers with the
+uncoalesced Mosaic single-accent system (`assets/palette/palette_rules.txt`):
+neutral Graphite / Porcelain / Mist / Line / Muted Ink, Palm Leaf ramp
+(#5D6E48 / #748E54 / #A4B68F) for identity and interaction, #F19143 for stubble and
+#EF2D56 for wildfire only. Tokens live in `frontend/src/index.css` `:root`.
+Fonts: JetBrains Mono (headings, labels, wordmark) + IBM Plex Sans (body) via Google Fonts.
+Map markers and the risk ramp use the same semantic hues; unclassified markers are Muted Ink.
+Hotspot summary split into spans so counts carry their fire colour. No logic changed;
+`MapView.test.ts` colour assertions updated to the new hex values.
+
+Deviation: the wordmark uses the tint on the Graphite header (shade is ~2.3:1 there).
+Generic errors use Graphite, not red, so red only ever means wildfire.
+
+Check:
+
+```bash
+npm run typecheck && npm run build && npm test
+grep -rniE "453643|bd897e|8f5a4f|f8ffe5|4daa57|362a34|b45309|d97706|0f172a" frontend/src
+```
+
+Passing: all three test suites report `fail 0` (68 / 17 / 40 pass); the grep prints nothing.
+Visual: `npm run dev`, open `http://localhost:5173/?demo`, desktop and 375px.
+
 ## 2026-09-29 — Fire-risk map layer for Telangana / AP (#21, Joel's half)
 
 - Toggle "Show fire risk (14 days)" in the map legend, shown only for Telangana / AP (the only

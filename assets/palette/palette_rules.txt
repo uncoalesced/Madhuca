@@ -1,5 +1,231 @@
-For the main text such as the "Madhuca" and the boxes surrounding the states etc use: 4DAA57
-For the non-map and text fields use: 453643
-For the "6 Active Fire Hotspots in Telangana (5 Stubble Burning, 1 Wildfire)" text make sure the text colour is: BD897E
-For the field surrounding the "6 Active Fire Hotspots in Telangana (5 Stubble Burning, 1 Wildfire)" make sure it is F8FFE5
-If you have question on what to use where ask.
+MADHUCA — PALETTE RULES
+============================
+
+Purpose
+-------
+This palette is for Madhuca: an autonomous stubble & biomass fire early-warning
+radar for Punjab, Bihar, Delhi and Telangana / Andhra Pradesh.
+
+The visual language must feel like an uncoalesced product rather than a generic
+environmental dashboard. Keep the Mosaic System's restraint and one-product-accent
+principle while making Madhuca's identity specific to fire monitoring, mapping,
+classification and early warning.
+
+CORE PALETTE
+------------
+
+Madhuca Green — Shade
+HEX: #5D6E48
+Role: Identity colour and primary green text.
+Use for: Madhuca wordmark, major headings, important numerical values, active
+text, high-priority labels and identity-bearing typography.
+
+Madhuca Green — Base
+HEX: #748E54
+Role: Primary product accent.
+Use for: selected region, primary buttons, active controls, selected map states,
+key interactive affordances and product-level emphasis.
+
+Madhuca Green — Tint
+HEX: #A4B68F
+Role: Quiet accent.
+Use for: subtle selected backgrounds, low-emphasis highlights, hover states,
+secondary map geometry and contextual emphasis.
+
+Graphite
+HEX: #333333
+Role: Dark ground and standard dark ink.
+Use for: top navigation, footer, dark panels, strong neutral text and structural
+chrome.
+
+Porcelain
+HEX: #FDFFFC
+Role: Primary light ground.
+Use for: main application surfaces, cards, map-adjacent panels and clean UI
+backgrounds.
+
+Mist
+HEX: #F1F3F0
+Role: Secondary surface.
+Use for: information panels, secondary controls, quiet status areas and
+non-primary cards.
+
+Line
+HEX: #DFE0DE
+Role: Structural line.
+Use for: borders, dividers, separators and inactive control boundaries.
+
+Muted Ink
+HEX: #767976
+Role: Secondary typography.
+Use for: metadata, captions, attribution, helper text and low-priority labels.
+
+Sandy Brown
+HEX: #F19143
+Role: Stubble / biomass burning semantic colour.
+Use ONLY when communicating likely stubble burning or biomass-burning data.
+Do not use it as generic decoration.
+
+Watermelon
+HEX: #EF2D56
+Role: Wildfire / danger semantic colour.
+Use ONLY when communicating likely wildfire, elevated danger or related fire
+classification. Do not use it as generic decoration.
+
+GREEN RAMP
+----------
+
+Madhuca is a single-accent product within the Mosaic System.
+
+Shade  -> #5D6E48
+Base   -> #748E54
+Tint   -> #A4B68F
+
+The shade/base/tint relationship is derived from the Mosaic product-ramp rule:
+the accent is mixed 35% toward Graphite for the shade and 35% toward Porcelain
+for the tint.
+
+Do not introduce a second product accent.
+
+SEMANTIC RULES
+--------------
+
+1. Green is product identity.
+   Madhuca's identity should read green without making every piece of UI green.
+
+2. Graphite and Porcelain establish the environment.
+   The interface should primarily be neutral with green providing hierarchy.
+
+3. Orange and red are data semantics.
+   Sandy Brown means stubble / biomass burning.
+   Watermelon means wildfire / danger.
+   These colours should immediately carry meaning when they appear.
+
+4. Do not use orange or red for branding, generic buttons, decoration or unrelated
+   UI elements.
+
+5. Main identity text should use Madhuca Green — Shade (#5D6E48).
+   Long-form body copy should normally remain Graphite for readability.
+
+6. Primary interactive controls use Madhuca Green — Base (#748E54).
+
+7. Quiet interactive/background states use Madhuca Green — Tint (#A4B68F).
+
+8. Do not recreate the old four-colour Coolors-style composition.
+   The previous purple / dusty-pink / cream / green arrangement is replaced by
+   this neutral + single-green-accent system.
+
+UI APPLICATION
+--------------
+
+Top navigation:
+- Graphite background.
+- Madhuca Green identity treatment for the Madhuca wordmark.
+- Selected region: Madhuca Green Base.
+- Inactive regions: neutral typography and restrained separators.
+
+Status / loading strip:
+- Porcelain or Mist background.
+- Green rule or green status indicator when appropriate.
+- Avoid yellow-green warning styling.
+
+Map legend:
+- Porcelain surface.
+- Line border.
+- Sandy Brown marker = likely stubble burning.
+- Watermelon marker = likely wildfire.
+- Primary action = Madhuca Green Base.
+
+Cards and panels:
+- Porcelain for primary cards.
+- Mist for secondary surfaces.
+- Line for boundaries.
+- Avoid large solid green cards unless the component is explicitly an active
+  state or primary action.
+
+Footer / attribution:
+- Graphite ground.
+- Muted light typography.
+- Keep attribution visually subordinate.
+
+MAP
+---
+
+The CARTO/OSM map should remain visually restrained.
+Do not recolour the basemap into the product palette.
+Madhuca's UI chrome should complement the neutral map rather than compete with it.
+
+TYPOGRAPHY
+----------
+
+Wordmark:
+JetBrains Mono, 400 / 600 / 700.
+
+Headings and labels:
+JetBrains Mono, 600, letter-spacing approximately -0.01em.
+
+Body:
+IBM Plex Sans, 400 / 500 / 600, approximately 16px with 1.6 line-height.
+
+Eyebrow labels:
+JetBrains Mono, 12px, uppercase, approximately 0.08em letter spacing,
+muted ink.
+
+VISUAL STYLE
+------------
+
+- Flat and analytical.
+- Restrained.
+- Technical without looking sterile.
+- Environmental without becoming "eco branding".
+- Map-first.
+- Data-first.
+- Strong hierarchy.
+- Small controlled moments of green.
+- No gradients.
+- No neon glow.
+- No glassmorphism.
+- No unnecessary decorative colour.
+- No independent product palette outside this specification.
+
+MOSAIC CONSISTENCY
+------------------
+
+Madhuca follows the uncoalesced Mosaic System:
+- Graphite #333333 remains the dark ground.
+- Porcelain #FDFFFC remains the light ground.
+- Madhuca claims Palm Leaf #748E54 as its single product accent.
+- Product accent uses shade/base/tint rather than a new multi-hue product palette.
+- JetBrains Mono is used for wordmarks, headings and labels.
+- IBM Plex Sans is used for body copy.
+- Existing Mosaic mark construction rules remain unchanged.
+
+DATA MEANING
+------------
+
+Likely Stubble Burning:
+Sandy Brown #F19143
+
+Likely Wildfire:
+Watermelon #EF2D56
+
+Product / Active:
+Madhuca Green #748E54
+
+Product Identity Text:
+Madhuca Green Shade #5D6E48
+
+Neutral:
+Graphite / Porcelain / Mist / Line / Muted Ink
+
+DESIGN TEST
+-----------
+
+A screen is correct if:
+- Madhuca is recognisably green without the entire UI becoming green.
+- Green communicates product identity and interaction.
+- Orange and red communicate fire classification rather than decoration.
+- The neutral map remains easy to read.
+- The UI looks like one coherent system rather than a Coolors palette.
+- The result feels consistent with uncoalesced Mosaic while remaining specific to
+  Madhuca.

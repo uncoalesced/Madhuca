@@ -134,9 +134,3 @@ Boundaries: DataMeet (Survey of India outline), Natural Earth.
 
 The code is under the [MIT License](LICENSE). The data files under `frontend/public/`
 keep their sources' terms, listed at the end of `LICENSE`.
-
-## Ground rule
-
-Nothing is done until a runnable test proves it and it is logged in
-`docs/log/<name>.md` with the exact command to re-run. Stubs are exempt; anything with
-real logic is not.

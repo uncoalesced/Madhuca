@@ -9,3 +9,6 @@ pipeline/tmp/
 pipeline/out/
 .dev.vars
 .wrangler/
+ml/data/
+ml/out/
+__pycache__/

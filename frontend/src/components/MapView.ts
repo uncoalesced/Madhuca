@@ -7,7 +7,14 @@ import {
   type Plume,
   type Region,
 } from '@madhuca/logic';
-import { plumeToGeoJSONPolygon } from '../utils/plumeGeometry.ts';
+import {
+  DETECTION_FOOTPRINT_KM,
+  SPREAD_HORIZON_H,
+  circlePolygon,
+  isCalmPlume,
+  plumeToGeoJSONPolygon,
+  spreadWedges,
+} from '../utils/plumeGeometry.ts';
 import { riskGridToFeatureCollection, type RiskGridData } from '../utils/riskGeometry.ts';
 
 export interface MapViewProps {
@@ -66,6 +73,36 @@ export function createPlumeFeatureCollection(
     features,
   };
 }
+
+/**
+ * The fire itself, drawn under the marker: the detection footprint, plus a red haze
+ * toward where it may spread (utils/plumeGeometry.ts spreadWedges) when the wind speed
+ * is known. `band` 0 is the footprint; 1..3 are the haze, nearest band densest.
+ */
+export function createFireFeatureCollection(
+  hotspots: Hotspot[],
+  plumes?: Record<string, Plume>,
+  classifications?: Record<string, Classification>,
+  windSpeeds?: Record<string, number>
+): GeoJSON.FeatureCollection<GeoJSON.Polygon> {
+  const features: GeoJSON.Feature<GeoJSON.Polygon>[] = [];
+  for (const hs of hotspots) {
+    const color = getMarkerColor(classifications?.[hs.id]);
+    features.push({
+      type: 'Feature',
+      properties: { hotspotId: hs.id, band: 0, color },
+      geometry: circlePolygon(hs.lat, hs.lon, DETECTION_FOOTPRINT_KM),
+    });
+    const plume = plumes?.[hs.id];
+    if (!plume || isCalmPlume(plume)) continue;
+    spreadWedges(hs.lat, hs.lon, plume.bearingDeg, windSpeeds?.[hs.id]).forEach((geometry, i) =>
+      features.push({ type: 'Feature', properties: { hotspotId: hs.id, band: i + 1, color }, geometry })
+    );
+  }
+  return { type: 'FeatureCollection', features };
+}
+
+const SMOKE = '#5B6573';
 
 const DEFAULT_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
@@ -163,6 +200,10 @@ export function MapView({
   // style finishes loading, and a closure over the first render would draw nothing.
   const plumeDataRef = useRef(createPlumeFeatureCollection(hotspots, plumes, classifications));
   plumeDataRef.current = createPlumeFeatureCollection(hotspots, plumes, classifications);
+  // ponytail: no wind speeds until Plume.windSpeedMs lands (contract issue #37); until
+  // then only the detection footprint is drawn, never a guessed spread.
+  const fireDataRef = useRef(createFireFeatureCollection(hotspots, plumes, classifications));
+  fireDataRef.current = createFireFeatureCollection(hotspots, plumes, classifications);
 
   // Initialize MapLibre GL map
   useEffect(() => {
@@ -190,30 +231,31 @@ export function MapView({
     map.on('load', () => {
       restyleBasemap(map);
 
-      // Add plume source and layers
-      map.addSource('plumes-source', {
-        type: 'geojson',
-        data: plumeDataRef.current,
-      });
-
+      // Smoke: slate grey, dotted outline, so it never reads as more fire.
+      map.addSource('plumes-source', { type: 'geojson', data: plumeDataRef.current });
       map.addLayer({
         id: 'plumes-fill',
         type: 'fill',
         source: 'plumes-source',
-        paint: {
-          'fill-color': ['get', 'color'],
-          'fill-opacity': 0.35,
-        },
+        paint: { 'fill-color': SMOKE, 'fill-opacity': 0.18 },
       });
-
       map.addLayer({
         id: 'plumes-line',
         type: 'line',
         source: 'plumes-source',
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': SMOKE, 'line-width': 2, 'line-opacity': 0.9, 'line-dasharray': [0.1, 2] },
+      });
+
+      // Fire on top of smoke: haze bands at rising opacity toward the fire, then the footprint.
+      map.addSource('fire-source', { type: 'geojson', data: fireDataRef.current });
+      map.addLayer({
+        id: 'fire-fill',
+        type: 'fill',
+        source: 'fire-source',
         paint: {
-          'line-color': ['get', 'color'],
-          'line-width': 1.5,
-          'line-opacity': 0.8,
+          'fill-color': ['get', 'color'],
+          'fill-opacity': ['match', ['get', 'band'], 0, 0.85, 1, 0.16, 2, 0.16, 3, 0.2, 0.16],
         },
       });
     });
@@ -247,9 +289,28 @@ export function MapView({
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
 
-    const source = map.getSource('plumes-source') as maplibregl.GeoJSONSource | undefined;
-    source?.setData(plumeDataRef.current);
+    (map.getSource('plumes-source') as maplibregl.GeoJSONSource | undefined)?.setData(plumeDataRef.current);
+    (map.getSource('fire-source') as maplibregl.GeoJSONSource | undefined)?.setData(fireDataRef.current);
   }, [hotspots, plumes, classifications]);
+
+  // Smoke and spread are a few km across, invisible at region zoom: frame the selected fire.
+  useEffect(() => {
+    const map = mapRef.current;
+    const hs = hotspots.find((h) => h.id === selectedId);
+    if (!map || !hs) return;
+    const plume = plumes?.[hs.id];
+    const ring = plume ? plumeToGeoJSONPolygon(hs.lat, hs.lon, plume).coordinates[0]! : [[hs.lon, hs.lat] as [number, number]];
+    const lons = ring.map((p) => p[0]);
+    const lats = ring.map((p) => p[1]);
+    map.fitBounds(
+      [
+        [Math.min(...lons), Math.min(...lats)],
+        [Math.max(...lons), Math.max(...lats)],
+      ],
+      // Right padding keeps the fire clear of the detail drawer on desktop.
+      { padding: { top: 60, bottom: 60, left: 60, right: window.innerWidth > 900 ? 380 : 60 }, maxZoom: 13, duration: 900 }
+    );
+  }, [selectedId]);
 
   // A different region's grid (or none) replaces whatever was loaded.
   useEffect(() => {
@@ -374,6 +435,18 @@ export function MapView({
         { className: 'legend-item' },
         React.createElement('span', { className: 'legend-dot dot-wildfire' }),
         React.createElement('span', { className: 'legend-label' }, 'Likely Wildfire')
+      ),
+      React.createElement(
+        'div',
+        { className: 'legend-item', title: `10% of wind speed over ${SPREAD_HORIZON_H} h. A rule of thumb, not a fire-spread model.` },
+        React.createElement('span', { className: 'legend-swatch swatch-spread' }),
+        React.createElement('span', { className: 'legend-label' }, `Possible spread (${SPREAD_HORIZON_H} h)`)
+      ),
+      React.createElement(
+        'div',
+        { className: 'legend-item' },
+        React.createElement('span', { className: 'legend-swatch swatch-smoke' }),
+        React.createElement('span', { className: 'legend-label' }, 'Smoke drift')
       ),
       riskUrl &&
         React.createElement(

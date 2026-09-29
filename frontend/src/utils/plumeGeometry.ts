@@ -99,6 +99,43 @@ export function plumeToGeoJSONPolygon(
   };
 }
 
+/** Closed circle ring of `radiusKm` around a point. */
+export function circlePolygon(lat: number, lon: number, radiusKm: number, steps = 24): GeoJSONPolygon {
+  const ring: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) ring.push(destinationPoint(lat, lon, radiusKm, (i * 360) / steps));
+  return { type: 'Polygon', coordinates: [ring] };
+}
+
+/** VIIRS I-band pixel: the ground a detection actually covers. */
+export const DETECTION_FOOTPRINT_KM = 0.375;
+export const SPREAD_HORIZON_H = 3;
+
+/**
+ * Possible forward fire spread in `SPREAD_HORIZON_H` hours: 10% of the 10 m wind speed
+ * (Cruz & Alexander 2019 rule of thumb for forest and shrubland). A rule of thumb, not a
+ * fire-spread model, and it knows nothing about fuel, slope or moisture. 0 when calm.
+ */
+export function fireSpreadKm(windSpeedMs: number | undefined): number {
+  if (!windSpeedMs || !Number.isFinite(windSpeedMs) || windSpeedMs < 0.5) return 0;
+  return 0.1 * windSpeedMs * 3.6 * SPREAD_HORIZON_H;
+}
+
+/**
+ * Red "possible spread" haze toward the smoke bearing: three nested wedges, drawn at
+ * rising opacity, so the colour is strongest near the fire and fades with distance.
+ * Empty when calm or when the wind speed is not known.
+ */
+export function spreadWedges(lat: number, lon: number, bearingDeg: number, windSpeedMs: number | undefined): GeoJSONPolygon[] {
+  const reach = fireSpreadKm(windSpeedMs);
+  if (reach <= DETECTION_FOOTPRINT_KM) return [];
+  return [1, 2 / 3, 1 / 3].map((f) => {
+    const ring: [number, number][] = [[Number(lon.toFixed(6)), Number(lat.toFixed(6))]];
+    for (let a = -20; a <= 20; a += 5) ring.push(destinationPoint(lat, lon, reach * f, bearingDeg + a));
+    ring.push(ring[0]!);
+    return { type: 'Polygon', coordinates: [ring] };
+  });
+}
+
 /** Converts a bearing in degrees (0..360) to human 8-point compass direction. */
 export function bearingToCompass(bearingDeg: number): string {
   const normalized = ((bearingDeg % 360) + 360) % 360;

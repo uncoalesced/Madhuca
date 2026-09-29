@@ -315,6 +315,24 @@ button:focus-visible {
   background-color: var(--wildfire);
 }
 
+.legend-swatch {
+  width: 14px;
+  height: 10px;
+  display: inline-block;
+  flex: none;
+  border-radius: 2px;
+}
+
+/* Fades away from the fire, like the haze bands on the map */
+.swatch-spread {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--wildfire) 55%, transparent), color-mix(in srgb, var(--wildfire) 12%, transparent));
+}
+
+.swatch-smoke {
+  background-color: color-mix(in srgb, var(--smoke) 18%, transparent);
+  border: 2px dotted var(--smoke);
+}
+
 /* Hotspot Detail Panel (Mobile Bottom Sheet / Desktop Drawer) */
 .hotspot-detail-panel {
   display: none;

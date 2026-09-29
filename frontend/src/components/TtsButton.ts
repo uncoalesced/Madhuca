@@ -4,17 +4,69 @@ import { synthesizeWithPiper } from '../utils/piperVoice.ts';
 export interface TtsButtonProps {
   /** The plain-language alert line to read aloud. */
   text: string;
-  /** BCP-47 language code — 'hi', 'pa', 'te', 'en'. */
+  /** BCP-47 language code — 'hi', 'kn', 'te', 'en'. */
   langCode?: string;
 }
 
 export type TtsPlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
 
-export const TTS_LANGUAGE_NAMES: Record<string, string> = {
-  hi: 'Hindi (हिंदी)',
-  pa: 'Punjabi (ਪੰਜਾਬੀ)',
-  te: 'Telugu (తెలుగు)',
-  en: 'English',
+type TtsError = 'unavailable' | 'noText' | 'playbackFailed';
+
+/** Button copy per alert language, so the button speaks the language the alert is in. */
+export const TTS_UI: Record<
+  string,
+  {
+    listen: string;
+    stop: string;
+    pause: string;
+    resume: string;
+    retry: string;
+    preparing: string;
+    /** `mb` is "12 / 80" or "12" when the size is unknown. */
+    downloading: (mb: string) => string;
+    errors: Record<TtsError, string>;
+  }
+> = {
+  en: {
+    listen: 'Listen Alert in English',
+    stop: 'Stop audio',
+    pause: 'Pause audio',
+    resume: 'Resume audio',
+    retry: 'Retry audio',
+    preparing: 'Preparing voice...',
+    downloading: (mb) => `Downloading voice ${mb} MB (one time)`,
+    errors: { unavailable: 'voice unavailable, read the alert text', noText: 'No alert text to read', playbackFailed: 'Playback failed' },
+  },
+  hi: {
+    listen: 'अलर्ट हिंदी में सुनें',
+    stop: 'ऑडियो बंद करें',
+    pause: 'ऑडियो रोकें',
+    resume: 'ऑडियो फिर से चलाएं',
+    retry: 'फिर से कोशिश करें',
+    preparing: 'आवाज़ तैयार हो रही है...',
+    downloading: (mb) => `आवाज़ डाउनलोड हो रही है ${mb} MB (केवल एक बार)`,
+    errors: { unavailable: 'आवाज़ उपलब्ध नहीं, अलर्ट पढ़ें', noText: 'पढ़ने के लिए कोई अलर्ट नहीं', playbackFailed: 'ऑडियो नहीं चला' },
+  },
+  kn: {
+    listen: 'ಎಚ್ಚರಿಕೆಯನ್ನು ಕನ್ನಡದಲ್ಲಿ ಕೇಳಿ',
+    stop: 'ಆಡಿಯೋ ನಿಲ್ಲಿಸಿ',
+    pause: 'ಆಡಿಯೋ ವಿರಾಮಗೊಳಿಸಿ',
+    resume: 'ಆಡಿಯೋ ಮುಂದುವರಿಸಿ',
+    retry: 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ',
+    preparing: 'ಧ್ವನಿ ಸಿದ್ಧವಾಗುತ್ತಿದೆ...',
+    downloading: (mb) => `ಧ್ವನಿ ಡೌನ್‌ಲೋಡ್ ಆಗುತ್ತಿದೆ ${mb} MB (ಒಮ್ಮೆ ಮಾತ್ರ)`,
+    errors: { unavailable: 'ಧ್ವನಿ ಲಭ್ಯವಿಲ್ಲ, ಎಚ್ಚರಿಕೆಯನ್ನು ಓದಿ', noText: 'ಓದಲು ಯಾವುದೇ ಎಚ್ಚರಿಕೆ ಇಲ್ಲ', playbackFailed: 'ಆಡಿಯೋ ಪ್ಲೇ ಆಗಲಿಲ್ಲ' },
+  },
+  te: {
+    listen: 'హెచ్చరికను తెలుగులో వినండి',
+    stop: 'ఆడియో ఆపండి',
+    pause: 'ఆడియో విరామం',
+    resume: 'ఆడియో కొనసాగించండి',
+    retry: 'మళ్ళీ ప్రయత్నించండి',
+    preparing: 'వాయిస్ సిద్ధమవుతోంది...',
+    downloading: (mb) => `వాయిస్ డౌన్‌లోడ్ అవుతోంది ${mb} MB (ఒక్కసారి మాత్రమే)`,
+    errors: { unavailable: 'వాయిస్ అందుబాటులో లేదు, హెచ్చరికను చదవండి', noText: 'చదవడానికి హెచ్చరిక లేదు', playbackFailed: 'ఆడియో ప్లే కాలేదు' },
+  },
 };
 
 /**
@@ -50,12 +102,12 @@ const audioBlobCache = new Map<string, string>();
  */
 export function TtsButton({ text, langCode = 'hi' }: TtsButtonProps) {
   const [playbackState, setPlaybackState] = useState<TtsPlaybackState>('idle');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<TtsError | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const speakingRef = useRef(false);
 
-  const langLabel = TTS_LANGUAGE_NAMES[langCode] ?? langCode.toUpperCase();
+  const ui = TTS_UI[langCode] ?? TTS_UI.en!;
   const cacheKey = `${langCode}:${text.trim()}`;
 
   // Stop whatever is playing when the text or language changes, or on unmount.
@@ -74,12 +126,10 @@ export function TtsButton({ text, langCode = 'hi' }: TtsButtonProps) {
     if (!audioUrl) {
       const wav = await synthesizeWithPiper(text, langCode, (loaded, total) =>
         setProgress(
-          total
-            ? `Downloading voice ${Math.round(loaded / 1e6)} / ${Math.round(total / 1e6)} MB (one time)`
-            : `Downloading voice ${Math.round(loaded / 1e6)} MB (one time)`,
+          ui.downloading(total ? `${Math.round(loaded / 1e6)} / ${Math.round(total / 1e6)}` : `${Math.round(loaded / 1e6)}`),
         ),
       );
-      setProgress('Preparing voice...');
+      setProgress(ui.preparing);
       audioUrl = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
       audioBlobCache.set(cacheKey, audioUrl);
     }
@@ -87,7 +137,7 @@ export function TtsButton({ text, langCode = 'hi' }: TtsButtonProps) {
     audioRef.current = audio;
     audio.onended = () => setPlaybackState('idle');
     audio.onerror = () => {
-      setErrorMessage('Playback failed');
+      setErrorKey('playbackFailed');
       setPlaybackState('error');
     };
     await audio.play();
@@ -97,7 +147,7 @@ export function TtsButton({ text, langCode = 'hi' }: TtsButtonProps) {
 
   const fail = () => {
     setProgress(null);
-    setErrorMessage('voice unavailable, read the alert text');
+    setErrorKey('unavailable');
     setPlaybackState('error');
   };
 
@@ -122,13 +172,13 @@ export function TtsButton({ text, langCode = 'hi' }: TtsButtonProps) {
       return;
     }
     if (!text.trim()) {
-      setErrorMessage('No alert text to read');
+      setErrorKey('noText');
       setPlaybackState('error');
       return;
     }
 
     setPlaybackState('loading');
-    setErrorMessage(null);
+    setErrorKey(null);
 
     const voice = await browserVoiceFor(langCode);
     if (voice) {
@@ -163,16 +213,16 @@ export function TtsButton({ text, langCode = 'hi' }: TtsButtonProps) {
   const getButtonText = () => {
     switch (playbackState) {
       case 'loading':
-        return progress ?? 'Preparing voice...';
+        return progress ?? ui.preparing;
       case 'playing':
-        return `${speakingRef.current ? 'Stop' : 'Pause'} audio (${langLabel})`;
+        return speakingRef.current ? ui.stop : ui.pause;
       case 'paused':
-        return `Resume audio (${langLabel})`;
+        return ui.resume;
       case 'error':
-        return `Retry audio (${errorMessage ?? 'Failed'})`;
+        return errorKey ? `${ui.retry} (${ui.errors[errorKey]})` : ui.retry;
       case 'idle':
       default:
-        return `Listen Alert in ${langLabel}`;
+        return ui.listen;
     }
   };
 
@@ -181,7 +231,7 @@ export function TtsButton({ text, langCode = 'hi' }: TtsButtonProps) {
     {
       type: 'button',
       className: `tts-button tts-state-${playbackState}`,
-      'aria-label': `Listen to fire alert aloud in ${langLabel}`,
+      lang: langCode,
       'aria-live': 'polite',
       disabled: playbackState === 'loading',
       onClick: handleTogglePlayback,

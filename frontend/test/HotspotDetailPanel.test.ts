@@ -7,6 +7,7 @@ import {
   getIntensityLabel,
   defaultLanguage,
   generatePlainLanguageAlert,
+  nearestTownText,
 } from '../src/components/HotspotDetailPanel.ts';
 import type { Classification, Hotspot, Plume } from '@madhuca/logic';
 
@@ -55,13 +56,13 @@ test('generatePlainLanguageAlert produces localized guidance across languages', 
   assert.ok(hindiAlert.includes('पराली'), 'Hindi alert should mention stubble burning');
   assert.ok(hindiAlert.includes('8.5 km'), 'Should include plume distance');
 
-  const punjabiAlert = generatePlainLanguageAlert(
+  const kannadaAlert = generatePlainLanguageAlert(
     MOCK_HOTSPOT,
     MOCK_CROP_CLASSIFICATION,
     MOCK_PLUME,
-    'pa'
+    'kn'
   );
-  assert.ok(punjabiAlert.includes('ਪਰਾਲੀ'), 'Punjabi alert should mention stubble burning');
+  assert.ok(kannadaAlert.includes('ಕೂಳೆ'), 'Kannada alert should mention stubble burning');
 
   const teluguAlert = generatePlainLanguageAlert(
     MOCK_HOTSPOT,
@@ -98,31 +99,36 @@ test('HotspotDetailPanel renders full details and audio section when active', ()
       hotspot: MOCK_HOTSPOT,
       classification: MOCK_CROP_CLASSIFICATION,
       plume: MOCK_PLUME,
-      state: 'Punjab',
+      state: 'Karnataka',
       onClose: () => {},
     })
   );
 
-  assert.ok(html.includes('About 14 km South-East of Jalandhar'), 'Expected nearest-town line');
-  assert.ok(html.includes('Likely Crop Stubble Burning'), 'Expected classification badge');
+  // Karnataka opens in Kannada: badge and nearest-town line included, town name stays in Latin script.
+  assert.ok(html.includes('Jalandhar ನಿಂದ ಸುಮಾರು 14 km ಆಗ್ನೇಯ ದಿಕ್ಕಿನಲ್ಲಿ'), 'Expected Kannada nearest-town line');
+  assert.ok(html.includes('ಸಂಭಾವ್ಯ ಕೂಳೆ ಸುಡುವಿಕೆ'), 'Expected Kannada classification badge');
+  assert.ok(html.includes('ವೈಜ್ಞಾನಿಕ ಕಾರಣ:'), 'Expected Kannada rationale label');
+  assert.ok(html.includes('ವಿಶ್ವಾಸಾರ್ಹತೆ: ಹೆಚ್ಚು'), 'Expected Kannada confidence line');
+  assert.doesNotMatch(html, /Likely|About \d|Scientific reason|Confidence:/);
   assert.ok(html.includes('38.5 MW'), 'Expected FRP value');
-  // Punjab opens in Punjabi, card headings included.
-  assert.ok(html.includes('ਤੁਹਾਡੇ ਲਈ ਇਸਦਾ ਮਤਲਬ'), 'Expected Punjabi advisory header');
-  assert.ok(html.includes('ਧੂੰਏਂ ਦਾ ਫੈਲਾਅ (ਹਵਾ)'), 'Expected Punjabi plume card title');
-  assert.ok(html.includes('ਧੂੰਆਂ ਪੂਰਬ ਵੱਲ (90°)'), 'Expected Punjabi smoke direction');
+  // Card headings follow the language too.
+  assert.ok(html.includes('ನಿಮಗೆ ಇದರ ಅರ್ಥ'), 'Expected Kannada advisory header');
+  assert.ok(html.includes('ಹೊಗೆಯ ಹರಡುವಿಕೆ (ಗಾಳಿ)'), 'Expected Kannada plume card title');
+  assert.ok(html.includes('ಹೊಗೆ ಪೂರ್ವ ಕಡೆಗೆ (90°)'), 'Expected Kannada smoke direction');
   assert.ok(html.includes('Close detail panel'), 'Expected close button with aria-label');
-  assert.ok(html.includes('ਪੰਜਾਬੀ'), 'Expected Punjabi language pill for Punjab region');
+  assert.ok(html.includes('ಕನ್ನಡ'), 'Expected Kannada language pill');
+  assert.doesNotMatch(html, /[਀-੿]/, 'no Punjabi (Gurmukhi) left anywhere');
 });
 
 test('Indic alert text carries the compass word in its own language', () => {
   const east: Plume = { bearingDeg: 90, distanceKm: 8.5, spreadDeg: 20 };
   const hi = generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, east, 'hi');
-  const pa = generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, east, 'pa');
+  const kn = generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, east, 'kn');
   const te = generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, east, 'te');
   assert.ok(hi.includes('पूर्व'), hi);
-  assert.ok(pa.includes('ਪੂਰਬ'), pa);
+  assert.ok(kn.includes('ಪೂರ್ವ'), kn);
   assert.ok(te.includes('తూర్పు'), te);
-  for (const line of [hi, pa, te]) assert.doesNotMatch(line, /East|North|South|West|downwind|vicinity/);
+  for (const line of [hi, kn, te]) assert.doesNotMatch(line, /East|North|South|West|downwind|vicinity/);
   const noPlume = generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, undefined, 'hi');
   assert.doesNotMatch(noPlume, /[A-Za-z]{3,}/);
   assert.match(generatePlainLanguageAlert(MOCK_HOTSPOT, MOCK_CROP_CLASSIFICATION, east, 'en'), /East/);
@@ -180,11 +186,35 @@ test('HotspotDetailPanel closes and reopens: null -> empty, hotspot -> dialog, n
 });
 
 test('the panel opens in the language of the state the fire is in', () => {
-  assert.equal(defaultLanguage('Punjab'), 'pa');
+  assert.equal(defaultLanguage('Karnataka'), 'kn');
+  assert.equal(defaultLanguage('Punjab'), 'hi', 'no Punjabi alert: Hindi');
   assert.equal(defaultLanguage('Telangana'), 'te');
   assert.equal(defaultLanguage('Andhra Pradesh'), 'te');
   assert.equal(defaultLanguage('Uttar Pradesh'), 'hi');
   assert.equal(defaultLanguage('Rajasthan'), 'hi');
   assert.equal(defaultLanguage('Kerala'), 'en', 'no Malayalam alert yet: English, not Hindi');
   assert.equal(defaultLanguage(undefined), 'en');
+});
+
+test('badge and nearest-town line follow the selected language', () => {
+  const render = (state: string, classification: Classification) =>
+    renderToStaticMarkup(
+      React.createElement(HotspotDetailPanel, {
+        hotspot: MOCK_HOTSPOT,
+        classification,
+        plume: MOCK_PLUME,
+        state,
+        onClose: () => {},
+      }),
+    );
+  const hi = render('Delhi', MOCK_WILDFIRE_CLASSIFICATION);
+  assert.ok(hi.includes('संभावित जंगल की आग'), 'Hindi wildfire badge');
+  assert.ok(hi.includes('Jalandhar से लगभग 14 km दक्षिण-पूर्व में'), 'Hindi town line');
+  const te = render('Telangana', MOCK_CROP_CLASSIFICATION);
+  assert.ok(te.includes('పంట వ్యర్థాల దహనం అయ్యే అవకాశం'), 'Telugu crop badge');
+  assert.ok(te.includes('Jalandhar నుండి సుమారు 14 km ఆగ్నేయం దిశలో'), 'Telugu town line');
+  const en = render('Kerala', MOCK_WILDFIRE_CLASSIFICATION);
+  assert.ok(en.includes('Likely Wildfire / Forest Fire'), 'English wildfire badge');
+  assert.ok(en.includes('About 14 km South-East of Jalandhar'), 'English town line');
+  assert.equal(nearestTownText(MOCK_HOTSPOT.lat, MOCK_HOTSPOT.lon), 'About 14 km South-East of Jalandhar');
 });

@@ -20,7 +20,7 @@ When a visitor opens the site, Madhuca fetches the latest satellite fire detecti
 current wind at each fire. It then estimates the direction and reach of each smoke plume
 and where the fire itself may spread, labels each fire as likely crop-residue burning or
 likely wildfire, and draws the result on a map of India drawn with its official boundary.
-Each fire comes with a plain-language alert in Punjabi, Hindi, Telugu or English that can
+Each fire comes with a plain-language alert in Hindi, Kannada, Telugu or English that can
 be read aloud, and a large compass badge showing where the smoke is heading.
 
 It is meant for farmers, hikers and residents who want to know about fire and smoke near
@@ -256,7 +256,7 @@ safety rules and the final review of every change stayed with the team.
 - "Possible spread" is a rule of thumb (10% of wind speed over three hours), not a
   fire-spread model.
 - On a phone without its own voice for the language, the first alert read aloud downloads
-  about 80 MB. Punjabi is read by the Hindi voice, so it has a Hindi accent.
+  about 80 MB. Kannada is read by the Telugu voice, so it has a Telugu accent.
 - Alerts exist in four languages only; fires in other states default to English.
 - The fire-risk layer is experimental, covers Telangana and Andhra Pradesh only, and a
   low value is never an all-clear.

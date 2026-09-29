@@ -1,3 +1,5 @@
+![Madhuca: autonomous stubble & biomass fire early-warning radar](assets/banner/madhuca-banner.png)
+
 # Madhuca
 
 Madhuca is an early-warning radar for stubble and biomass fires across India. You pick

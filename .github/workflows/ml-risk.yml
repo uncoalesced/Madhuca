@@ -60,6 +60,10 @@ jobs:
           echo "grid is $size bytes"
           test "$size" -lt 51200
 
+      # The map draws this image, clipped to the region's states and coast.
+      - name: Render the map image
+        run: python -u ml/render_risk.py ml/out/${{ inputs.region }}.json
+
       - uses: actions/upload-artifact@v4
         with:
           name: ml-risk-${{ inputs.region }}

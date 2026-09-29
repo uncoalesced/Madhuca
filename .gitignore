@@ -12,3 +12,6 @@ pipeline/out/
 ml/data/
 ml/out/
 __pycache__/
+
+# Per-person work briefs stay local
+delegation/

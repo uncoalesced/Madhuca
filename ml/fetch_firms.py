@@ -1,6 +1,6 @@
 """Download the NASA FIRMS VIIRS (Suomi NPP) detections for one region box.
 
-    FIRMS_MAP_KEY=... python ml/fetch_firms.py telangana 2019-01-01 2026-09-28
+    FIRMS_MAP_KEY=... python ml/fetch_firms.py south 2019-01-01 2026-09-28
 
 Offline only (MASTER.md 2026-09-28 decision): run by hand or by the manual ml-risk
 workflow, never on the request path. Standard-processing archive (VIIRS_SNPP_SP)

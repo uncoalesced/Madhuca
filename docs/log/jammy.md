@@ -25,6 +25,41 @@ Not covered: the deployed site, which still needs a deploy.
 
 ---
 
+## 2026-09-29 (IST) — Contract #20 types, the risk-grid validator, the spread stub and the classifier plan
+
+Joel agreed the #20 shape on 29 Sept and scoped the classifier as a plan only. Built:
+- **`logic/src/types.ts`**: `RiskGrid`, `SpreadEstimate` and `ClassifierWeights`, as agreed, with `labelSource`. **One deviation:** `RiskGrid.region` is a `string`, not a `Region`. The 29 Sept pivot changed `Region` to north/south/west/east/india, and the only published grid covers the old Telangana / AP box, which is none of those. Calling it `south` would be false. This is posted on #20.
+- **`logic/src/risk.ts`** (`parseRiskGrid`): validates a published grid. It checks that the bbox is ordered, that cols/rows match the bbox at `cellDeg`, one value per cell, integers 0-255, ISO dates in order, and a named model. It throws rather than returning a partial grid.
+- **`logic/src/spread.ts`** (`estimateSpread`): a scaffold. It always gives 0 km over 0 h, meaning "not estimated". The bearing is downwind when wind is usable, else 0. It never throws.
+- **`ml/README.md`**: the model 2 plan (labels via Van Agni matching, a logistic regression exported as `ClassifierWeights`, ship only if it beats the rules) and a note on model 3.
+- **`ml/train_risk.py`, `ml/fetch_firms.py`**: the usage lines said `telangana`, which the pivot made invalid. They now say `south`, the ml-risk default.
+
+Not changed: Joel's `frontend/src/utils/riskGeometry.ts` still has its own `RiskGridData`; he said he would switch to the import. No classifier hook is added to `classifyHotspot`, per his decision.
+
+### Checks
+
+```bash
+node --test logic/test/risk.test.ts logic/test/spread.test.ts
+npm run typecheck && npm run build && npm test --workspaces --if-present
+```
+Output:
+```
+ok 1 - the published Telangana / AP grid validates as a RiskGrid and is under 50 KB
+ok 2 - a grid whose values do not fill its cells is rejected, not half-read
+ok 3 - a grid whose size does not match its bbox is rejected
+ok 4 - values outside 0-255, bad dates, a flipped bbox or a missing model are rejected
+ok 5 - the scaffold never estimates a reach: distance 0 over 0 hours means "not estimated"
+ok 6 - the front heads downwind: wind from the north-west points it south-east
+ok 7 - missing, calm or broken wind degrades to no direction instead of throwing
+# pass 7
+# fail 0
+```
+I checked the length test against a planted bug: with the value-count check removed from `parseRiskGrid`, test 2 fails (`# pass 3 # fail 1`). Restored, all pass.
+
+Suite: logic 61/61, worker 13/13, frontend 54 pass, 0 fail. The one `not ok` is the known Node 22 cancellation of the timeout test; CI runs Node 24. Typecheck and build exit 0. The emoji check found 0 lines.
+
+---
+
 ## 2026-09-29 (IST) — New logo on the tab, and a loading screen that fills the logo in
 
 Joel's request: replace the old logo everywhere with the new one, and add a short loading animation in which the logo starts hollow and fills with its real colours.

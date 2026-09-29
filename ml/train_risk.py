@@ -1,6 +1,6 @@
 """Fire-risk forecast for one region: train, evaluate on later data, export a RiskGrid.
 
-    python ml/train_risk.py telangana 2026-09-29
+    python ml/train_risk.py south 2026-09-29
 
 What it predicts: for each 0.1 degree cell, the probability of at least one VIIRS
 (Suomi NPP) fire detection in the 14 days starting on the forecast date. An

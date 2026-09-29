@@ -622,39 +622,57 @@ button:focus-visible {
   gap: 0.75rem;
 }
 
-/* Footer (Mandatory CC-BY 4.0 Attribution) */
-.app-footer {
+/* Credits (mandatory CC-BY 4.0 attribution + model disclaimer): a (C) button over the map,
+   bottom-left, opening the full text. Sits under the detail sheet. */
+.credits {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.credits-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--line-dark);
+  background-color: var(--graphite);
+  color: var(--porcelain);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(51, 51, 51, 0.2);
+}
+
+.credits-button[aria-expanded='true'] {
+  background-color: var(--green);
+  border-color: var(--green);
+}
+
+.credits-panel {
+  max-width: min(24rem, calc(100vw - 2rem));
   background-color: var(--graphite);
   color: var(--muted-ink-dark);
-  padding: 0.3rem 1rem;
-  font-size: 0.68rem;
+  border: 1px solid var(--line-dark);
+  border-radius: var(--radius-s);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.15rem 1rem;
-  border-top: 1px solid var(--line-dark);
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
-.app-footer p {
-  margin: 0;
+.credits-panel[hidden] {
+  display: none;
 }
 
-.app-footer a {
-  color: inherit;
-}
-
-.footer-attribution {
-  font-weight: 500;
-}
-
-.footer-credit {
-  margin-left: auto !important;
+.credits-by {
   font-family: var(--font-mono);
-}
-
-.footer-disclaimer {
-  font-weight: 400;
 }
 
 .spinner-icon {
@@ -863,16 +881,5 @@ button:focus-visible {
 
   .direction-letter {
     font-size: 2rem;
-  }
-
-  .app-footer {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.6rem;
-    line-height: 1.35;
-    gap: 0.1rem 1rem;
-  }
-
-  .footer-credit {
-    margin-left: 0 !important;
   }
 }

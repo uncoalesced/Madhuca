@@ -83,7 +83,7 @@ test('demoRadar classifies fake hotspots against the given grids, with their sta
   }
 });
 
-test('App renders brand header, region selector, and mandatory ESA attribution footer', () => {
+test('App renders brand header, region selector, and mandatory ESA attribution behind the (C) button', () => {
   const html = renderToStaticMarkup(React.createElement(App));
 
   assert.ok(html.includes('Madhuca'), 'Expected brand name in markup');
@@ -97,6 +97,10 @@ test('App renders brand header, region selector, and mandatory ESA attribution f
     html.includes('simplified Gaussian-puff approximation (not HYSPLIT)'),
     'Expected honest Gaussian-puff model disclaimer'
   );
+  // Folded, never removed: the text is in the page, behind a button that says what it opens.
+  assert.match(html, /class="credits-button"[^>]*aria-label="Data sources and credits"/);
+  assert.match(html, /id="credits-panel" class="credits-panel" hidden=""/);
+  assert.doesNotMatch(html, /<footer/);
 });
 
 test('fetchRadar on a request that never answers resolves to a timeout error, not a forever spinner', async () => {

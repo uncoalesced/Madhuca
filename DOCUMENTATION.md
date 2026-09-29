@@ -14,13 +14,14 @@
 
 ## 1. Summary
 
-Madhuca is a public web application that shows active fires across four Indian regions and
-estimates where their smoke is going. The regions are Punjab, Bihar, Delhi, and Telangana
-together with Andhra Pradesh. When a visitor opens the site, Madhuca fetches the latest
-satellite fire detections and the current wind at each fire. It then estimates the
-direction and reach of each smoke plume, labels each fire as likely crop-residue burning
-or likely wildfire, and draws the result on a map. Each fire also comes with a
-plain-language alert in Punjabi, Hindi, Telugu or English.
+Madhuca is a public web application that shows active fires across India and estimates
+where their smoke is going. Visitors pick North, South, West or East India, or all of it.
+When a visitor opens the site, Madhuca fetches the latest satellite fire detections and the
+current wind at each fire. It then estimates the direction and reach of each smoke plume
+and where the fire itself may spread, labels each fire as likely crop-residue burning or
+likely wildfire, and draws the result on a map of India drawn with its official boundary.
+Each fire comes with a plain-language alert in Punjabi, Hindi, Telugu or English that can
+be read aloud, and a large compass badge showing where the smoke is heading.
 
 It is meant for farmers, hikers and residents who want to know about fire and smoke near
 them before they can see it or smell it. It is an on-demand lookup tool. It does not run
@@ -30,9 +31,11 @@ in the background, and it does not send alerts to officials.
 
 The project began with a real incident. A forest fire in Telangana damaged property
 belonging to a friend of the team. The fire started in broad daylight, and nobody had any
-warning. That is why Telangana and Andhra Pradesh are launch regions, next to the regions
-best known for stubble burning (Punjab and Bihar) and the city that sits downwind of them
-(Delhi).
+warning. That is why Telangana and Andhra Pradesh were among the four launch regions, next
+to the regions best known for stubble burning (Punjab and Bihar) and the city that sits
+downwind of them (Delhi). On 29 September 2026 the four regions were replaced by national
+coverage in five views (North, South, West, East and All India), each built from whole
+states.
 
 India already runs a national forest-fire alert system: Van Agni, from the Forest Survey
 of India. It uses MODIS and SNPP-VIIRS satellite data, and people can register for SMS
@@ -65,6 +68,18 @@ deployment.
 - Integrated the frontend with the server API and fixed a production basemap failure.
 - Deployed the site and added per-IP rate limiting and a human check to the API.
 - Built the fire-risk map layer and the final visual design.
+- Drew the map with India's official boundary (Jammu and Kashmir and Ladakh including
+  PoK, Gilgit-Baltistan and Aksai Chin), replacing the basemap's de-facto lines, and made
+  water blue.
+- Replaced the unreachable hosted voice with free, open-source speech that runs in the
+  browser (Piper voices for Hindi and Telugu; Punjabi read by the Hindi voice).
+- Added the smoke-direction compass badge, translated the whole detail panel, and drew
+  separate fire and smoke overlays, including a labelled "possible spread" estimate.
+- Clipped the fire-risk layer to state lines and the coast, and added a national
+  farmland layer from ESA WorldCover.
+- Moved the app from four regions to national coverage: a state grid and a national
+  land-cover grid replaced the per-region masks, and wind requests are batched so an
+  all-India scan fits the free tier.
 - Set up continuous integration, the contract-guard workflow and the issue templates.
 
 ### Jammy: science and logic core, server path and machine learning
@@ -80,13 +95,14 @@ runs them.
   region and fire radiative power, and it deliberately leans towards "wildfire" rather
   than "crop burning" when the evidence is ambiguous.
 - Hardened the classifier against edge cases: polygon boundaries and holes,
-  multi-polygons, and all four regional masks.
+  multi-polygons, and all four regional masks. Its rules carried over unchanged when the
+  masks were replaced by national grids.
 - Wrote the Indic text-to-speech wrapper (`logic/src/tts.ts`).
 - Built the Cloudflare Worker behind `GET /api/radar`, with parallel wind requests
   deduplicated by grid cell.
 - Measured the Worker's CPU use against the free-tier budget, found that the land-cover
-  masks exceeded it on a cold start, and fixed that with a prebuilt binary index. Loading
-  the index now costs under 1 ms.
+  masks exceeded it on a cold start, and fixed that with a prebuilt binary index, loading in
+  under 1 ms. That measurement shaped the national grids that replaced it.
 - Added Cloudflare Turnstile verification to the API.
 - Built the experimental 14-day fire-risk model for Telangana and Andhra Pradesh, with a
   held-out evaluation against simple baselines.
@@ -112,23 +128,32 @@ quality assurance on real devices and the pitch material.
 Visitor opens the site
         |
         v
-Cloudflare Worker  GET /api/radar?region=<region>
-  1. NASA FIRMS        active fire detections, clipped to India's border
-  2. Open-Meteo        wind at each fire (one request per 0.25 degree cell)
-  3. Dispersion        simplified Gaussian-puff plume: bearing, reach, spread
-  4. Classification    ESA WorldCover land cover + season + region + fire power
+Cloudflare Worker  GET /api/radar?region=north|south|west|east|india
+  1. NASA FIRMS        active fire detections in the region's box
+  2. State grid        keep fires in the region's states (drops Pakistan, Nepal, sea)
+  3. Open-Meteo        wind, batched: 100 locations per request, 0.5 degree cells
+  4. Dispersion        simplified Gaussian-puff plume: bearing, reach, spread, wind speed
+  5. Classification    ESA WorldCover land cover + season + state + fire power
         |
         v
 Browser (React + MapLibre GL)
-  map markers, smoke plumes, detail panel, alert text in four languages
+  markers, fire footprint and possible-spread haze, dotted smoke plume,
+  detail panel with compass badge, alert text and voice in four languages
 ```
 
-**Heavy work runs offline.** Geographic processing, meaning clipping satellite land cover
-into regional masks, runs in GitHub Actions and publishes static files. Training the
+**Heavy work runs offline.** Geographic processing runs once, offline, and publishes static
+files: India's state and country boundaries, a grid saying which state every point is in
+(about 110 m), a national land-cover grid (about 550 m) and a farmland image. Looking a
+fire up in either grid is a single array read. Training the
 fire-risk model is also offline. Neither of them runs while a visitor is waiting.
 
 **Light work runs per request.** The Worker does only network fetches and cheap
-arithmetic. Everything a region needs has to fit in the free tier's 10 ms CPU budget.
+arithmetic. Everything a region needs has to fit in the free tier's 10 ms CPU budget;
+3000 fires across all of India measured about 4 ms.
+
+**Voice runs on the phone.** The device's own voice is used when it has the language.
+Otherwise a Piper voice model runs in the browser, downloaded once. No server and no paid
+service is involved.
 
 **The dispersion model is an approximation.** It is a simplified Gaussian-puff
 calculation, not NOAA HYSPLIT. It estimates which direction smoke travels and roughly how
@@ -141,7 +166,10 @@ far. It does not forecast concentrations.
 | Active fire detections | NASA FIRMS (VIIRS and MODIS) | Free, API key required |
 | Wind | Open-Meteo (GFS) | Free, no key |
 | Land cover | ESA WorldCover 2021, 10 m | CC-BY 4.0, attribution shown in the app |
-| India border | Natural Earth 1:10m, India point of view | Public domain |
+| Country borders | Natural Earth 1:10m, India point of view | Public domain |
+| State boundaries | DataMeet States/Admin2 (Survey of India outline) | Attribution shown in the app |
+| Places | Natural Earth 1:10m populated places | Public domain |
+| Alert voices | Piper voices (rhasspy/piper-voices), onnxruntime-web | Open source, loaded on first use |
 | Basemap | CARTO Positron, OpenStreetMap data | Attribution shown on the map |
 
 ## 6. Design principles
@@ -161,7 +189,9 @@ The team agreed on these rules early, and they apply to every change:
 6. **Built for low-end phones.** No model runs on the device, and the page does as little
    work as it can.
 7. **Accessible language.** Alerts are written for non-specialists, in the language of
-   the region, with compass directions translated too.
+   the fire's state, with compass directions translated too.
+8. **India as it is.** The map shows India's official boundary, and fires in
+   Gilgit-Baltistan and Aksai Chin are Indian fires.
 
 ## 7. Repository layout
 
@@ -170,7 +200,7 @@ The team agreed on these rules early, and they apply to every change:
 | `frontend/` | Vite, React and MapLibre GL web application |
 | `logic/` | Framework-free TypeScript: fetchers, dispersion, classification, TTS |
 | `worker/` | Cloudflare Worker that serves the site and `/api/radar` |
-| `pipeline/` | Offline land-cover processing (GDAL, GitHub Actions) |
+| `pipeline/` | Offline boundary and land-cover processing (Node, Python) |
 | `ml/` | Offline fire-risk model (Python, NumPy, scikit-learn) |
 | `docs/` | Decision record, roadmap, coding standards, and each member's work log |
 | `delegation/` | Each member's work brief |
@@ -220,12 +250,14 @@ safety rules and the final review of every change stayed with the team.
 ## 10. Known limitations
 
 - The dispersion model estimates direction and reach, not smoke concentration.
-- Land cover is resolved at about 390 m. Grassland and scrub are grouped as "other".
+- Land cover is resolved at about 550 m. Grassland, scrub and mangrove are grouped as
+  "other".
 - Satellites can miss small, short-lived or cloud-covered fires.
-- Coverage is limited to four regions.
-- The hosted Indic text-to-speech endpoint is unreachable at the time of writing. Alerts
-  are read aloud with the phone's own voice where one exists, and shown as text
-  otherwise.
+- "Possible spread" is a rule of thumb (10% of wind speed over three hours), not a
+  fire-spread model.
+- On a phone without its own voice for the language, the first alert read aloud downloads
+  about 80 MB. Punjabi is read by the Hindi voice, so it has a Hindi accent.
+- Alerts exist in four languages only; fires in other states default to English.
 - The fire-risk layer is experimental, covers Telangana and Andhra Pradesh only, and a
   low value is never an all-clear.
 
@@ -233,7 +265,8 @@ safety rules and the final review of every change stayed with the team.
 
 Contains modified Copernicus Sentinel data, © ESA WorldCover project 2021 (CC-BY 4.0).
 Fire data from NASA FIRMS. Wind data from Open-Meteo. Map data © OpenStreetMap
-contributors, basemap by CARTO. Border data from Natural Earth.
+contributors, basemap by CARTO. Border and place data from Natural Earth. State boundaries
+from DataMeet. Voices from the Piper project.
 
 The source code is open. Every dependency and external service the project uses,
 including the closed-source ones, is listed in `README.md`.

@@ -217,13 +217,14 @@ export function App() {
         React.createElement(
           'div',
           { className: 'status-banner banner-ready' },
+          IS_DEMO && React.createElement('span', { className: 'summary-demo' }, 'DEMO DATA, not real fires.'),
           React.createElement(
             'span',
-            null,
-            (IS_DEMO ? 'DEMO DATA, not real fires. ' : '') +
-            `${hotspots.length} Active Fire Hotspot${hotspots.length > 1 ? 's' : ''} in ${activeRegionLabel} (` +
-              `${stubbleCount} Stubble Burning, ${wildfireCount} Wildfire)`
-          )
+            { className: 'summary-total' },
+            `${hotspots.length} Active Fire Hotspot${hotspots.length > 1 ? 's' : ''} in ${activeRegionLabel}`
+          ),
+          React.createElement('span', { className: 'summary-count summary-stubble' }, `${stubbleCount} Stubble Burning`),
+          React.createElement('span', { className: 'summary-count summary-wildfire' }, `${wildfireCount} Wildfire`)
         )
     ),
 

@@ -26,9 +26,9 @@ export interface MapViewProps {
 
 /** Determines high-contrast marker pin color based on fire classification. */
 export function getMarkerColor(classification?: Classification): string {
-  if (classification?.kind === 'likely-wildfire') return '#dc2626'; // Brick Red for wildfires
-  if (classification?.kind === 'likely-crop-burning') return '#d97706'; // Warm Amber for stubble burning
-  return '#f59e0b'; // Neutral Gold for pending / other
+  if (classification?.kind === 'likely-wildfire') return '#EF2D56'; // Watermelon: wildfire (Mosaic semantic)
+  if (classification?.kind === 'likely-crop-burning') return '#F19143'; // Sandy Brown: stubble / biomass (Mosaic semantic)
+  return '#767976'; // Muted ink: pending / other, no extra hue
 }
 
 /** Builds GeoJSON FeatureCollection from hotspots and their dispersion plumes. */
@@ -210,10 +210,9 @@ export function MapView({
                 // p tops out around 0.14 (median 0.02) for a 14-day window, so the ramp is scaled to that.
                 'fill-color': [
                   'interpolate', ['linear'], ['get', 'p'],
-                  0, '#fef9c3',
-                  0.02, '#fcd34d',
-                  0.05, '#f97316',
-                  0.1, '#b91c1c',
+                  0, '#F1F3F0',
+                  0.02, '#F19143',
+                  0.1, '#EF2D56',
                 ],
                 'fill-opacity': 0.45,
               },
@@ -251,8 +250,8 @@ export function MapView({
       el.style.width = isSelected ? '28px' : '22px';
       el.style.height = isSelected ? '28px' : '22px';
       el.style.borderRadius = '50%';
-      el.style.border = isSelected ? '3px solid #ffffff' : '2px solid #ffffff';
-      el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.35)';
+      el.style.border = isSelected ? '3px solid #FDFFFC' : '2px solid #FDFFFC';
+      el.style.boxShadow = '0 1px 3px rgba(51,51,51,0.4)';
       el.style.cursor = 'pointer';
 
       el.addEventListener('click', (e) => {

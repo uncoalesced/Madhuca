@@ -41,9 +41,9 @@ const MOCK_CLASSIFICATIONS: Record<string, Classification> = {
 };
 
 test('getMarkerColor correctly assigns distinct high-contrast colors by classification', () => {
-  assert.equal(getMarkerColor({ kind: 'likely-wildfire', landCover: 'forest', rationale: '' }), '#dc2626', 'Wildfire must map to urgent brick red');
-  assert.equal(getMarkerColor({ kind: 'likely-crop-burning', landCover: 'cropland', rationale: '' }), '#d97706', 'Crop-burning must map to warm stubble amber');
-  assert.equal(getMarkerColor(undefined), '#f59e0b', 'Missing classification must map to gold neutral');
+  assert.equal(getMarkerColor({ kind: 'likely-wildfire', landCover: 'forest', rationale: '' }), '#EF2D56', 'Wildfire must map to Watermelon');
+  assert.equal(getMarkerColor({ kind: 'likely-crop-burning', landCover: 'cropland', rationale: '' }), '#F19143', 'Crop-burning must map to Sandy Brown');
+  assert.equal(getMarkerColor(undefined), '#767976', 'Missing classification must map to muted ink');
 });
 
 test('createPlumeFeatureCollection produces valid GeoJSON for N hotspots with plumes', () => {
@@ -60,7 +60,7 @@ test('createPlumeFeatureCollection produces valid GeoJSON for N hotspots with pl
   assert.ok(f1);
   assert.equal(f1.properties.hotspotId, 'hs-1');
   assert.equal(f1.properties.classification, 'likely-crop-burning');
-  assert.equal(f1.properties.color, '#d97706');
+  assert.equal(f1.properties.color, '#F19143');
   assert.equal(f1.geometry.type, 'Polygon');
   assert.ok(f1.geometry.coordinates[0]?.length && f1.geometry.coordinates[0].length > 0);
 
@@ -68,7 +68,7 @@ test('createPlumeFeatureCollection produces valid GeoJSON for N hotspots with pl
   assert.ok(f2);
   assert.equal(f2.properties.hotspotId, 'hs-2');
   assert.equal(f2.properties.classification, 'likely-wildfire');
-  assert.equal(f2.properties.color, '#dc2626');
+  assert.equal(f2.properties.color, '#EF2D56');
 });
 
 test('createPlumeFeatureCollection returns empty collection when plumes is undefined', () => {

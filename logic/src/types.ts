@@ -67,3 +67,51 @@ export interface LandCoverMask {
   /** GeoJSON FeatureCollection; each Feature has properties.landCover: LandCover. */
   features: unknown;
 }
+
+/**
+ * Precomputed fire-risk grid for one area. Built offline (ml/), published as
+ * frontend/public/risk/<area>.json (contract issue #20). An experimental statistical
+ * estimate: the probability of at least one VIIRS detection per cell in the next
+ * 14 days, from past detections and land cover. A low value is NOT an all-clear.
+ */
+export interface RiskGrid {
+  /**
+   * The area the grid covers, e.g. 'telangana' (the Telangana / AP box). A name, not a
+   * `Region`: contract #20 said `Region`, but the 29 Sept pivot to North / South / West /
+   * East zones left the one published grid's area outside that union.
+   */
+  region: string;
+  /** [west, south, east, north], same order as REGION_BBOX. */
+  bbox: readonly [number, number, number, number];
+  /** Cell size in degrees (0.1). */
+  cellDeg: number;
+  cols: number;
+  rows: number;
+  /** Row-major from the south-west corner, one value 0-255 per cell (0 = no data, not "safe"; else 1 + round(254 * p)). */
+  risk: number[];
+  /** ISO date range the model forecasts for, inclusive. */
+  validFrom: string;
+  validTo: string;
+  /** Model name + version, shown in the UI as the source. */
+  model: string;
+}
+
+/** Where an active fire is likely to spread next. Scaffold only; not a validated spread model. */
+export interface SpreadEstimate {
+  hotspotId: string;
+  /** Degrees clockwise from north that the fire front is likely to move toward. */
+  bearingDeg: number;
+  /** Rough reach over the next `horizonHours`, in km. 0 with `horizonHours` 0 = not estimated. */
+  distanceKm: number;
+  horizonHours: number;
+}
+
+/** Tiny offline-trained crop-vs-wildfire model, evaluated as arithmetic in classifyHotspot. */
+export interface ClassifierWeights {
+  version: string;
+  features: readonly string[];
+  weights: readonly number[];
+  bias: number;
+  /** Where the training labels came from (e.g. "FSI Van Agni alerts 2024-2025"). Labels are never invented (issue #21). */
+  labelSource: string;
+}

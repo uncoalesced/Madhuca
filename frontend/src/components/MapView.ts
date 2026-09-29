@@ -200,6 +200,10 @@ export function MapView({
 }: MapViewProps) {
   const [riskOn, setRiskOn] = useState(false);
   const [farmlandOn, setFarmlandOn] = useState(false);
+  // Folded by default on phones, where the open legend covers half the map. Desktop CSS ignores the fold.
+  const [legendOpen, setLegendOpen] = useState(
+    () => typeof window === 'undefined' || !window.matchMedia?.('(max-width: 767px)').matches,
+  );
   const [riskGrid, setRiskGrid] = useState<RiskGridData | null>(null);
   const [riskError, setRiskError] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -453,7 +457,17 @@ export function MapView({
     }),
     React.createElement(
       'div',
-      { className: 'map-legend', 'aria-label': 'Map Legend' },
+      { className: `map-legend${legendOpen ? '' : ' map-legend-collapsed'}`, 'aria-label': 'Map Legend' },
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          className: 'legend-toggle',
+          'aria-expanded': legendOpen,
+          onClick: () => setLegendOpen((open) => !open),
+        },
+        legendOpen ? 'Hide legend' : 'Legend'
+      ),
       React.createElement(
         'div',
         { className: 'legend-item' },

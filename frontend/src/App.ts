@@ -89,7 +89,7 @@ const IS_DEMO =
 export type RadarStatus = 'loading' | 'ready' | 'empty' | 'error' | 'verify';
 
 export function App() {
-  const [region, setRegion] = useState<Region>('north');
+  const [region, setRegion] = useState<Region>('india');
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
   const [plumes, setPlumes] = useState<Record<string, Plume>>({});
   const [classifications, setClassifications] = useState<Record<string, Classification>>({});
@@ -176,7 +176,9 @@ export function App() {
           'span',
           { className: 'brand-subtitle' },
           'Autonomous Stubble & Biomass Fire Early-Warning Radar'
-        )
+        ),
+        // Phones: the full subtitle cannot share one line with the title, so a short one stands in.
+        React.createElement('span', { className: 'brand-subtitle-short', 'aria-hidden': 'true' }, 'Stubble & Biomass Fire Radar')
       ),
       React.createElement(RegionSelector, { region, onChange: setRegion })
     ),

@@ -730,3 +730,149 @@ button:focus-visible {
   line-height: 1.35;
   color: var(--muted-ink);
 }
+
+/* Phones only: the short subtitle and the legend fold. Desktop never shows either. */
+.brand-subtitle-short,
+.legend-toggle {
+  display: none;
+}
+
+/* Phones: every bar above and below the map shrinks so the map stays usable. Desktop is untouched. */
+@media (max-width: 767px) {
+  .app-header {
+    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .brand-container {
+    flex-wrap: nowrap;
+    gap: 0.6rem;
+    min-width: 0;
+  }
+
+  .brand-title {
+    font-size: 1.1rem;
+    flex: none;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .brand-subtitle-short {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted-ink-dark);
+  }
+
+  .region-tab {
+    min-height: 40px;
+    padding: 0.3rem 0.15rem;
+  }
+
+  .region-tab-name {
+    font-size: 0.72rem;
+  }
+
+  .region-tab-native {
+    font-size: 0.6rem;
+  }
+
+  .status-banner {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    gap: 0.2rem 0.75rem;
+  }
+
+  .summary-total {
+    font-size: 0.8rem;
+  }
+
+  .summary-count {
+    font-size: 0.72rem;
+  }
+
+  .map-legend {
+    top: 0.5rem;
+    left: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.68rem;
+    gap: 0.3rem;
+    /* Clear the zoom buttons at top-right. */
+    max-width: calc(100% - 4.5rem);
+    max-height: calc(100% - 1rem);
+    overflow-y: auto;
+  }
+
+  .legend-toggle {
+    display: block;
+    background: var(--mist);
+    color: var(--graphite);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    padding: 0.3rem 0.6rem;
+    min-height: 32px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .map-legend-collapsed {
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .map-legend-collapsed > :not(.legend-toggle) {
+    display: none;
+  }
+
+  .map-legend-collapsed .legend-toggle {
+    box-shadow: 0 1px 3px rgba(51, 51, 51, 0.12);
+  }
+
+  .risk-toggle {
+    min-height: 32px;
+    font-size: 0.7rem;
+  }
+
+  .risk-note {
+    max-width: none;
+    font-size: 0.66rem;
+  }
+
+  .hotspot-panel-active {
+    max-height: 50%;
+    padding: 0.9rem;
+    padding-bottom: calc(0.9rem + env(safe-area-inset-bottom));
+    gap: 0.65rem;
+  }
+
+  .panel-title {
+    font-size: 1rem;
+  }
+
+  .direction-letter {
+    font-size: 2rem;
+  }
+
+  .app-footer {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.6rem;
+    line-height: 1.35;
+    gap: 0.1rem 1rem;
+  }
+
+  .footer-credit {
+    margin-left: 0 !important;
+  }
+}

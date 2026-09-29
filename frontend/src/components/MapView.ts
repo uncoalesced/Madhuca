@@ -69,6 +69,80 @@ export function createPlumeFeatureCollection(
 
 const DEFAULT_MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
+export const WATER = '#B3DAF5';
+const WATERWAY = '#86BFE6';
+
+/**
+ * Positron's country and state lines follow de-facto borders (PoK, Gilgit-Baltistan
+ * and Aksai Chin drawn outside India). They are hidden, and replaced by India's official
+ * boundary from frontend/public/boundaries/ (pipeline/boundaries.mjs, which asserts
+ * Gilgit and Aksai Chin fall inside Ladakh). Grey water becomes blue.
+ */
+export const HIDDEN_BASEMAP_LAYERS = ['boundary_country_outline', 'boundary_country_inner', 'boundary_state'];
+const POK_PROVINCE_LABELS = ['Azad Kashmir', 'Azad Jammu and Kashmir', 'Gilgit-Baltistan', 'Gilgit Baltistan'];
+
+/** Minimal slice of maplibregl.Map this touches, so a test can pass a fake. */
+export interface RestylableMap {
+  getLayer(id: string): unknown;
+  getFilter(id: string): unknown;
+  setFilter(id: string, filter: unknown): void;
+  getStyle(): { layers: Array<{ id: string; type: string }> };
+  setLayoutProperty(id: string, name: string, value: unknown): void;
+  setPaintProperty(id: string, name: string, value: unknown): void;
+  addSource(id: string, source: object): void;
+  addLayer(layer: object, beforeId?: string): void;
+}
+
+export function restyleBasemap(map: RestylableMap): void {
+  for (const id of HIDDEN_BASEMAP_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+  if (map.getLayer('water')) map.setPaintProperty('water', 'fill-color', WATER);
+  if (map.getLayer('waterway')) map.setPaintProperty('waterway', 'line-color', WATERWAY);
+  for (const id of ['watername_ocean', 'watername_sea']) {
+    if (!map.getLayer(id)) continue;
+    map.setPaintProperty(id, 'text-color', '#4F86AD');
+    map.setPaintProperty(id, 'text-halo-color', WATER);
+  }
+  // The basemap labels Pakistan's names for the provinces of PoK; they are part of
+  // Jammu & Kashmir and Ladakh on this map.
+  if (map.getLayer('place_state')) {
+    map.setFilter('place_state', [
+      'all',
+      map.getFilter('place_state') ?? ['has', 'name'],
+      ['!in', 'name', ...POK_PROVINCE_LABELS],
+      ['!in', 'name_en', ...POK_PROVINCE_LABELS],
+    ]);
+  }
+
+  // Under the first label layer, so place names stay readable over the lines.
+  const firstLabel = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
+  map.addSource('india-states', { type: 'geojson', data: '/boundaries/state-lines.json' });
+  map.addSource('country-borders', { type: 'geojson', data: '/boundaries/borders.json' });
+  map.addLayer(
+    {
+      id: 'india-states-line',
+      type: 'line',
+      source: 'india-states',
+      paint: {
+        'line-color': '#B9A3A6',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 3, 0.4, 7, 1, 10, 1.4],
+      },
+    },
+    firstLabel,
+  );
+  map.addLayer(
+    {
+      id: 'country-borders-line',
+      type: 'line',
+      source: 'country-borders',
+      paint: {
+        'line-color': ['case', ['==', ['get', 'india'], 1], '#8C7477', '#B9A3A6'],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 3, 1, 7, 1.8, 10, 2.4],
+      },
+    },
+    firstLabel,
+  );
+}
+
 /** MapLibre GL map with a marker per hotspot and dispersion plume overlays for the selected region. */
 export function MapView({
   region,
@@ -103,11 +177,19 @@ export function MapView({
         [east, north],
       ],
       fitBoundsOptions: { padding: 32, maxZoom: 12 },
+      // North stays up, so the panel's direction arrow always matches the map.
+      dragRotate: false,
+      pitchWithRotate: false,
+      touchPitch: false,
     });
+    map.touchZoomRotate.disableRotation();
+    map.keyboard.disableRotation();
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
     map.on('load', () => {
+      restyleBasemap(map);
+
       // Add plume source and layers
       map.addSource('plumes-source', {
         type: 'geojson',

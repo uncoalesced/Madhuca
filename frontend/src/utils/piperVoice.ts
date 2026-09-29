@@ -14,38 +14,26 @@ const CACHE_NAME = 'madhuca-piper-v1';
 export const PIPER_VOICES: Record<string, string> = {
   hi: 'hi/hi_IN/pratham/medium/hi_IN-pratham-medium.onnx',
   te: 'te/te_IN/maya/medium/te_IN-maya-medium.onnx',
-  // Piper has no Punjabi voice. The Gurmukhi alert is transliterated to Devanagari
-  // (gurmukhiToDevanagari) and read by the Hindi voice: Hindi accent, no tones.
-  pa: 'hi/hi_IN/pratham/medium/hi_IN-pratham-medium.onnx',
+  // Piper has no Kannada voice. The Kannada alert is transliterated to Telugu script
+  // (kannadaToTelugu) and read by the Telugu voice: close phonetics, Telugu accent.
+  kn: 'te/te_IN/maya/medium/te_IN-maya-medium.onnx',
 };
 
 /** Download progress of the voice model, in bytes. `total` is 0 when unknown. */
 export type VoiceProgress = (loaded: number, total: number) => void;
 
-// ਖ ਘ ਛ ਝ ਠ ਢ ਥ ਧ ਫ ਭ
-const ASPIRATES = new Set([0x0a16, 0x0a18, 0x0a1b, 0x0a1d, 0x0a20, 0x0a22, 0x0a25, 0x0a27, 0x0a2b, 0x0a2d]);
-
 /**
- * Gurmukhi and Devanagari share Unicode layout at a fixed 0x100 offset, so most of
- * the mapping is arithmetic. Two Gurmukhi-only marks need care: tippi is a nasal,
- * like anusvara, and addak doubles the consonant after it.
+ * Kannada and Telugu share Unicode layout at a fixed 0x80 offset, so the mapping is
+ * arithmetic. The one Kannada-only letter (archaic LLLA, U+0CDE) has no Telugu slot
+ * and is read as the nearest sound, LA.
  */
-export function gurmukhiToDevanagari(text: string): string {
+export function kannadaToTelugu(text: string): string {
   let out = '';
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
-    if (c === 0x0a71) {
-      // An aspirate doubles as its plain partner, one code point earlier: ੱਛ -> च्छ.
-      const next = text.charCodeAt(i + 1);
-      const plain = ASPIRATES.has(next) ? next - 1 : next;
-      if (next >= 0x0a15 && next <= 0x0a5e) out += String.fromCharCode(plain - 0x100, 0x094d);
-    } else if (c === 0x0a70) {
-      out += 'ं';
-    } else if (c >= 0x0a01 && c <= 0x0a6f) {
-      out += String.fromCharCode(c - 0x100);
-    } else {
-      out += text[i];
-    }
+    if (c === 0x0cde) out += 'ల';
+    else if (c >= 0x0c80 && c <= 0x0cff) out += String.fromCharCode(c - 0x80);
+    else out += text[i];
   }
   return out;
 }
@@ -213,7 +201,7 @@ async function phonemeIds(text: string, espeakVoice: string): Promise<number[]> 
 export async function synthesizeWithPiper(text: string, langCode: string, onProgress?: VoiceProgress): Promise<ArrayBuffer> {
   const path = PIPER_VOICES[langCode];
   if (!path) throw new Error(`no open-source voice for '${langCode}'`);
-  const spoken = langCode === 'pa' ? gurmukhiToDevanagari(text) : text;
+  const spoken = langCode === 'kn' ? kannadaToTelugu(text) : text;
 
   const { session, config } = await loadVoice(path, onProgress);
   const ids = await phonemeIds(spoken.trim(), config.espeak.voice);

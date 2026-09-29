@@ -123,10 +123,10 @@ test('getPlumeSummary speaks the alert language, compass word included', () => {
   assert.ok(te.directionText.includes('పడమర'), te.directionText);
   assert.ok(te.reachText.includes('3.6 km'));
   const hi = getPlumeSummary(west, 'hi');
-  const pa = getPlumeSummary(west, 'pa');
+  const kn = getPlumeSummary(west, 'kn');
   assert.ok(hi.safetyAdvice.includes('पश्चिम'), hi.safetyAdvice);
-  assert.ok(pa.directionText.includes('ਪੱਛਮ'), pa.directionText);
-  for (const s of [te, hi, pa]) {
+  assert.ok(kn.directionText.includes('ಪಶ್ಚಿಮ'), kn.directionText);
+  for (const s of [te, hi, kn]) {
     assert.doesNotMatch(`${s.directionText} ${s.reachText} ${s.safetyAdvice}`, /West|Blowing|downwind|Downwind/);
   }
   assert.doesNotMatch(getPlumeSummary(undefined, 'hi').directionText, /Calm/);

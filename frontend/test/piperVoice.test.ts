@@ -1,17 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gurmukhiToDevanagari, pcmToWav, PIPER_VOICES } from '../src/utils/piperVoice.ts';
+import { kannadaToTelugu, pcmToWav, PIPER_VOICES } from '../src/utils/piperVoice.ts';
 import { browserVoiceFor } from '../src/components/TtsButton.ts';
 
-test('gurmukhiToDevanagari maps letters, vowel signs, tippi and addak', () => {
-  // ਪੰਜਾਬ (Punjab): tippi becomes anusvara.
-  assert.equal(gurmukhiToDevanagari('ਪੰਜਾਬ'), 'पंजाब');
-  // ਧੂੰਆਂ (smoke): bindi and vowel signs map by offset.
-  assert.equal(gurmukhiToDevanagari('ਧੂੰਆਂ'), 'धूंआं');
-  // ਪੱਛਮ (west): addak doubles the next consonant with a virama.
-  assert.equal(gurmukhiToDevanagari('ਪੱਛਮ'), 'पच्छम');
-  // Latin text, digits and punctuation pass through; the Gurmukhi danda is Devanagari's anyway.
-  assert.equal(gurmukhiToDevanagari('3.5 km।'), '3.5 km।');
+test('kannadaToTelugu maps letters, vowel signs and virama by offset', () => {
+  // ಹೊಗೆ (smoke) and ಪಶ್ಚಿಮ (west, with a virama conjunct).
+  assert.equal(kannadaToTelugu('ಹೊಗೆ'), 'హొగె');
+  assert.equal(kannadaToTelugu('ಪಶ್ಚಿಮ'), 'పశ్చిమ');
+  // Anusvara and the retroflex LLA have Telugu partners; archaic LLLA reads as LA.
+  assert.equal(kannadaToTelugu('ಸಂಭಾವ್ಯ ಗಾಳಿ'), 'సంభావ్య గాళి');
+  assert.equal(kannadaToTelugu('ೞ'), 'ల');
+  // Latin text, digits and punctuation pass through.
+  assert.equal(kannadaToTelugu('3.5 km.'), '3.5 km.');
 });
 
 test('pcmToWav writes a 16-bit mono RIFF header and clamps samples', () => {
@@ -28,7 +28,7 @@ test('pcmToWav writes a 16-bit mono RIFF header and clamps samples', () => {
 });
 
 test('every non-English alert language has an open-source voice', () => {
-  for (const lang of ['hi', 'pa', 'te']) assert.ok(PIPER_VOICES[lang]?.endsWith('.onnx'), lang);
+  for (const lang of ['hi', 'kn', 'te']) assert.ok(PIPER_VOICES[lang]?.endsWith('.onnx'), lang);
 });
 
 /** A fake speechSynthesis whose voice list arrives late, like Chrome's. */
@@ -53,5 +53,5 @@ test('browserVoiceFor waits for a late voice list instead of reporting no voice'
 test('browserVoiceFor never picks another language, and gives up after the timeout', async () => {
   assert.equal(await browserVoiceFor('te', lateSynth([{ lang: 'en-US' }, { lang: 'hi-IN' }], 5), 1000), undefined);
   assert.equal(await browserVoiceFor('hi', lateSynth([{ lang: 'hi-IN' }], 500), 30), undefined);
-  assert.equal(await browserVoiceFor('pa', undefined), undefined);
+  assert.equal(await browserVoiceFor('kn', undefined), undefined);
 });

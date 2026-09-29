@@ -11,15 +11,91 @@ import {
   isCalmPlume,
 } from '../utils/plumeGeometry.ts';
 
-/** "12 km NE of Ludhiana": where the fire sits relative to the closest listed town. */
-export function nearestTownText(lat: number, lon: number): string {
+type Confidence = 'low' | 'nominal' | 'high';
+
+/** Panel copy outside the alert itself, per alert language. Town names stay in Latin script: TOWNS has no others. */
+const PANEL_TEXT: Record<
+  string,
+  {
+    wildfire: string;
+    crop: string;
+    other: string;
+    inTown: (town: string) => string;
+    nearTown: (km: number, dir: string, town: string) => string;
+    reason: string;
+    confidence: string;
+    coordinates: string;
+    calm: string;
+    levels: Record<Confidence, string>;
+  }
+> = {
+  en: {
+    wildfire: 'Likely Wildfire / Forest Fire',
+    crop: 'Likely Crop Stubble Burning',
+    other: 'Active Fire Hotspot',
+    inTown: (town) => `In ${town}`,
+    nearTown: (km, dir, town) => `About ${km} km ${dir} of ${town}`,
+    reason: 'Scientific reason',
+    confidence: 'Confidence',
+    coordinates: 'Coordinates',
+    calm: 'Calm wind',
+    levels: { low: 'low', nominal: 'nominal', high: 'high' },
+  },
+  hi: {
+    wildfire: 'संभावित जंगल की आग',
+    crop: 'संभावित पराली दहन',
+    other: 'सक्रिय आग',
+    inTown: (town) => `${town} में`,
+    nearTown: (km, dir, town) => `${town} से लगभग ${km} km ${dir} में`,
+    reason: 'वैज्ञानिक कारण',
+    confidence: 'विश्वसनीयता',
+    coordinates: 'निर्देशांक',
+    calm: 'शांत हवा',
+    levels: { low: 'कम', nominal: 'सामान्य', high: 'उच्च' },
+  },
+  kn: {
+    wildfire: 'ಸಂಭಾವ್ಯ ಕಾಡ್ಗಿಚ್ಚು',
+    crop: 'ಸಂಭಾವ್ಯ ಕೂಳೆ ಸುಡುವಿಕೆ',
+    other: 'ಸಕ್ರಿಯ ಬೆಂಕಿ',
+    inTown: (town) => `${town} ನಲ್ಲಿ`,
+    nearTown: (km, dir, town) => `${town} ನಿಂದ ಸುಮಾರು ${km} km ${dir} ದಿಕ್ಕಿನಲ್ಲಿ`,
+    reason: 'ವೈಜ್ಞಾನಿಕ ಕಾರಣ',
+    confidence: 'ವಿಶ್ವಾಸಾರ್ಹತೆ',
+    coordinates: 'ನಿರ್ದೇಶಾಂಕಗಳು',
+    calm: 'ಶಾಂತ ಗಾಳಿ',
+    levels: { low: 'ಕಡಿಮೆ', nominal: 'ಸಾಮಾನ್ಯ', high: 'ಹೆಚ್ಚು' },
+  },
+  te: {
+    wildfire: 'అడవి మంట అయ్యే అవకాశం',
+    crop: 'పంట వ్యర్థాల దహనం అయ్యే అవకాశం',
+    other: 'చురుకైన మంట',
+    inTown: (town) => `${town} లో`,
+    nearTown: (km, dir, town) => `${town} నుండి సుమారు ${km} km ${dir} దిశలో`,
+    reason: 'శాస్త్రీయ కారణం',
+    confidence: 'విశ్వసనీయత',
+    coordinates: 'అక్షాంశ రేఖాంశాలు',
+    calm: 'గాలి ప్రశాంతం',
+    levels: { low: 'తక్కువ', nominal: 'సాధారణ', high: 'అధిక' },
+  },
+};
+
+/** FIRMS confidence is kept raw ('l' | 'n' | 'h', or MODIS 0-100); words are translated, numbers are not. */
+function confidenceText(raw: string, lang: string): string {
+  const level: Confidence | undefined =
+    raw === 'l' || raw === 'low' ? 'low' : raw === 'n' || raw === 'nominal' ? 'nominal' : raw === 'h' || raw === 'high' ? 'high' : undefined;
+  return level ? (PANEL_TEXT[lang] ?? PANEL_TEXT.en!).levels[level] : raw;
+}
+
+/** "About 12 km North-East of Ludhiana": where the fire sits relative to the closest listed town. */
+export function nearestTownText(lat: number, lon: number, lang: string = 'en'): string {
   let best = { name: '', distanceKm: Infinity, bearingDeg: 0 };
   for (const [name, tLat, tLon] of TOWNS) {
     const d = distanceAndBearing(tLat, tLon, lat, lon);
     if (d.distanceKm < best.distanceKm) best = { name, ...d };
   }
-  if (best.distanceKm < 1) return `In ${best.name}`;
-  return `About ${Math.round(best.distanceKm)} km ${bearingToCompass(best.bearingDeg)} of ${best.name}`;
+  const text = PANEL_TEXT[lang] ?? PANEL_TEXT.en!;
+  if (best.distanceKm < 1) return text.inTown(best.name);
+  return text.nearTown(Math.round(best.distanceKm), compassWord(best.bearingDeg, lang), best.name);
 }
 
 export interface HotspotDetailPanelProps {
@@ -32,15 +108,15 @@ export interface HotspotDetailPanelProps {
 }
 
 /** Alert language a fire's panel opens in: the state's language where we have one, else Hindi or English. */
-export function defaultLanguage(state: string | undefined): 'hi' | 'pa' | 'te' | 'en' {
-  if (state === 'Punjab') return 'pa';
+export function defaultLanguage(state: string | undefined): 'hi' | 'kn' | 'te' | 'en' {
+  if (state === 'Karnataka') return 'kn';
   if (state === 'Telangana' || state === 'Andhra Pradesh') return 'te';
   if (state !== undefined && HINDI_STATES.includes(state)) return 'hi';
   return 'en';
 }
 
 const HINDI_STATES: readonly string[] = [
-  'Delhi', 'Haryana', 'Uttar Pradesh', 'Bihar', 'Jharkhand', 'Madhya Pradesh', 'Rajasthan',
+  'Delhi', 'Punjab', 'Haryana', 'Uttar Pradesh', 'Bihar', 'Jharkhand', 'Madhya Pradesh', 'Rajasthan',
   'Chhattisgarh', 'Uttarakhand', 'Himachal Pradesh', 'Chandigarh',
 ];
 
@@ -59,11 +135,11 @@ const INTENSITY_LABELS: Record<string, Record<Severity, string>> = {
     high: 'उच्च तीव्रता (बड़ी बायोमास आग)',
     severe: 'बहुत तेज़ गर्मी (बड़ी जंगल की आग)',
   },
-  pa: {
-    low: 'ਘੱਟ ਤੀਬਰਤਾ (ਛੋਟੀ ਖੇਤ ਦੀ ਅੱਗ)',
-    moderate: 'ਦਰਮਿਆਨੀ ਤੀਬਰਤਾ (ਆਮ ਪਰਾਲੀ ਸਾੜਨਾ)',
-    high: 'ਉੱਚ ਤੀਬਰਤਾ (ਵੱਡੀ ਬਾਇਓਮਾਸ ਅੱਗ)',
-    severe: 'ਬਹੁਤ ਤੇਜ਼ ਗਰਮੀ (ਵੱਡੀ ਜੰਗਲੀ ਅੱਗ)',
+  kn: {
+    low: 'ಕಡಿಮೆ ತೀವ್ರತೆ (ಸಣ್ಣ ಹೊಲದ ಬೆಂಕಿ)',
+    moderate: 'ಮಧ್ಯಮ ತೀವ್ರತೆ (ಸಾಮಾನ್ಯ ಕೂಳೆ ಸುಡುವಿಕೆ)',
+    high: 'ಹೆಚ್ಚಿನ ತೀವ್ರತೆ (ದೊಡ್ಡ ಜೈವಿಕ ತ್ಯಾಜ್ಯದ ಬೆಂಕಿ)',
+    severe: 'ತೀವ್ರ ಶಾಖ (ದೊಡ್ಡ ಕಾಡ್ಗಿಚ್ಚು)',
   },
   te: {
     low: 'తక్కువ తీవ్రత (చిన్న పొలం మంట)',
@@ -77,7 +153,7 @@ const INTENSITY_LABELS: Record<string, Record<Severity, string>> = {
 const CARD_TITLES: Record<string, { smoke: string; intensity: string; advisory: string }> = {
   en: { smoke: 'Smoke Dispersion (Wind)', intensity: 'Fire Intensity & Power', advisory: 'What this means for you' },
   hi: { smoke: 'धुएं का फैलाव (हवा)', intensity: 'आग की तीव्रता और शक्ति', advisory: 'आपके लिए इसका मतलब' },
-  pa: { smoke: 'ਧੂੰਏਂ ਦਾ ਫੈਲਾਅ (ਹਵਾ)', intensity: 'ਅੱਗ ਦੀ ਤੀਬਰਤਾ ਅਤੇ ਤਾਕਤ', advisory: 'ਤੁਹਾਡੇ ਲਈ ਇਸਦਾ ਮਤਲਬ' },
+  kn: { smoke: 'ಹೊಗೆಯ ಹರಡುವಿಕೆ (ಗಾಳಿ)', intensity: 'ಬೆಂಕಿಯ ತೀವ್ರತೆ ಮತ್ತು ಶಕ್ತಿ', advisory: 'ನಿಮಗೆ ಇದರ ಅರ್ಥ' },
   te: { smoke: 'పొగ వ్యాప్తి (గాలి)', intensity: 'మంట తీవ్రత & శక్తి', advisory: 'మీకు దీని అర్థం' },
 };
 
@@ -95,7 +171,12 @@ function DirectionBadge({ plume, lang }: { plume?: Plume; lang: string }) {
     return React.createElement(
       'div',
       { className: 'direction-badge direction-badge-calm', 'aria-label': 'Calm wind' },
-      React.createElement('span', { className: 'direction-letter' }, 'CALM')
+      React.createElement(
+        'div',
+        { className: 'direction-text' },
+        React.createElement('span', { className: 'direction-letter' }, 'CALM'),
+        lang !== 'en' && React.createElement('span', { className: 'direction-word' }, (PANEL_TEXT[lang] ?? PANEL_TEXT.en!).calm)
+      )
     );
   }
   const bearing = plume.bearingDeg;
@@ -124,7 +205,7 @@ function DirectionBadge({ plume, lang }: { plume?: Plume; lang: string }) {
 
 const LOCAL_FALLBACK: Record<string, { downwind: string; vicinity: string }> = {
   hi: { downwind: 'हवा की दिशा', vicinity: 'आसपास के क्षेत्र' },
-  pa: { downwind: 'ਹਵਾ ਦੀ ਦਿਸ਼ਾ', vicinity: 'ਨੇੜਲੇ ਇਲਾਕੇ' },
+  kn: { downwind: 'ಗಾಳಿಯ ದಿಕ್ಕು', vicinity: 'ಸಮೀಪದ ಪ್ರದೇಶ' },
   te: { downwind: 'గాలి దిశ', vicinity: 'సమీప ప్రాంతం' },
   en: { downwind: 'downwind', vicinity: 'immediate vicinity' },
 };
@@ -137,16 +218,16 @@ export function generatePlainLanguageAlert(
   langCode: string = 'hi'
 ): string {
   const isWildfire = classification?.kind === 'likely-wildfire';
-  // Every word inside a Hindi/Punjabi/Telugu line stays in that language, compass included.
+  // Every word inside a Hindi/Kannada/Telugu line stays in that language, compass included.
   const local = LOCAL_FALLBACK[langCode] ?? LOCAL_FALLBACK.en!;
   const compass = plume ? compassWord(plume.bearingDeg, langCode) : local.downwind;
   const dist = plume && plume.distanceKm > 0.5 ? `${plume.distanceKm.toFixed(1)} km` : local.vicinity;
 
-  if (langCode === 'pa') {
+  if (langCode === 'kn') {
     if (isWildfire) {
-      return `ਜੰਗਲ ਜਾਂ ਝਾੜੀਆਂ ਦੀ ਅੱਗ ਦਾ ਚਿਤਾਵਨੀ ਸੰਕੇਤ ਮਿਲਿਆ ਹੈ। ਧੂੰਆਂ ${compass} ਵੱਲ ${dist} ਤੱਕ ਜਾ ਰਿਹਾ ਹੈ। ਬਾਹਰ ਨਿਕਲਣ ਤੋਂ ਬਚੋ ਅਤੇ ਖਿੜਕੀਆਂ ਬੰਦ ਰੱਖੋ।`;
+      return `ತೀವ್ರ ಕಾಡ್ಗಿಚ್ಚು ಪತ್ತೆಯಾಗಿದೆ. ಹೊಗೆ ${compass} ದಿಕ್ಕಿನಲ್ಲಿ ${dist} ವರೆಗೆ ಹರಡುತ್ತಿದೆ. ಸಮೀಪದ ಜನರು ಎಚ್ಚರದಿಂದಿರಿ ಮತ್ತು ಕಿಟಕಿಗಳನ್ನು ಮುಚ್ಚಿಡಿ.`;
     }
-    return `ਖੇਤੀਬਾੜੀ ਪਰਾਲੀ ਸਾੜਨ ਦੀ ਪਛਾਣ ਹੋਈ ਹੈ। ਧੂੰਆਂ ${compass} ਦਿਸ਼ਾ ਵੱਲ ਲਗਭਗ ${dist} ਤੱਕ ਫੈਲ ਰਿਹਾ ਹੈ। ਹਵਾ ਦੀ ਗੁਣਵੱਤਾ ਪ੍ਰਭਾਵਿਤ ਹੋ ਸਕਦੀ ਹੈ।`;
+    return `ಹೊಲಗಳಲ್ಲಿ ಕೂಳೆ ಸುಡುವಿಕೆ ಪತ್ತೆಯಾಗಿದೆ. ಹೊಗೆ ${compass} ದಿಕ್ಕಿನಲ್ಲಿ ಸುಮಾರು ${dist} ವರೆಗೆ ಹೋಗುತ್ತಿದೆ. ಗಾಳಿಯ ಗುಣಮಟ್ಟ ಕುಸಿಯಬಹುದು.`;
   }
 
   if (langCode === 'te') {
@@ -205,11 +286,8 @@ export function HotspotDetailPanel({
     ? 'badge-crop-burning'
     : 'badge-other';
 
-  const badgeLabel = isWildfire
-    ? 'Likely Wildfire / Forest Fire'
-    : isCropBurning
-    ? 'Likely Crop Stubble Burning'
-    : 'Active Fire Hotspot';
+  const text = PANEL_TEXT[selectedLang] ?? PANEL_TEXT.en!;
+  const badgeLabel = isWildfire ? text.wildfire : isCropBurning ? text.crop : text.other;
 
   return React.createElement(
     'aside',
@@ -226,7 +304,7 @@ export function HotspotDetailPanel({
         'div',
         { className: 'panel-header-title-group' },
         React.createElement('span', { className: `classification-badge ${badgeClass}` }, badgeLabel),
-        React.createElement('h3', { className: 'panel-title' }, nearestTownText(hotspot.lat, hotspot.lon))
+        React.createElement('h3', { className: 'panel-title' }, nearestTownText(hotspot.lat, hotspot.lon, selectedLang))
       ),
       React.createElement(
         'button',
@@ -247,7 +325,7 @@ export function HotspotDetailPanel({
       React.createElement(
         'div',
         { className: 'lang-selector-group', role: 'group', 'aria-label': 'Select audio language' },
-        (['hi', 'pa', 'te', 'en'] as const).map((code) => {
+        (['hi', 'kn', 'te', 'en'] as const).map((code) => {
           const isSelected = selectedLang === code;
           return React.createElement(
             'button',
@@ -257,7 +335,7 @@ export function HotspotDetailPanel({
               className: `lang-pill ${isSelected ? 'lang-pill-active' : ''}`,
               onClick: () => setSelectedLang(code),
             },
-            code === 'hi' ? 'हिंदी' : code === 'pa' ? 'ਪੰਜਾਬੀ' : code === 'te' ? 'తెలుగు' : 'English'
+            code === 'hi' ? 'हिंदी' : code === 'kn' ? 'ಕನ್ನಡ' : code === 'te' ? 'తెలుగు' : 'English'
           );
         })
       ),
@@ -271,7 +349,7 @@ export function HotspotDetailPanel({
       React.createElement('div', { className: 'card-title' }, titles.advisory),
       React.createElement('p', { className: 'advisory-text' }, alertText),
       classification?.rationale &&
-        React.createElement('div', { className: 'card-note', style: { marginTop: '0.35rem' } }, `Scientific reason: ${classification.rationale}`)
+        React.createElement('div', { className: 'card-note', style: { marginTop: '0.35rem' } }, `${text.reason}: ${classification.rationale}`)
     ),
 
     // Details Grid
@@ -299,7 +377,7 @@ export function HotspotDetailPanel({
         React.createElement(
           'div',
           { className: 'card-note' },
-          `Confidence: ${hotspot.confidence} | Coordinates: ${hotspot.lat.toFixed(4)}°N, ${hotspot.lon.toFixed(4)}°E`
+          `${text.confidence}: ${confidenceText(hotspot.confidence, selectedLang)} | ${text.coordinates}: ${hotspot.lat.toFixed(4)}°N, ${hotspot.lon.toFixed(4)}°E`
         )
       )
     )

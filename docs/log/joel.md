@@ -4,6 +4,36 @@ Log finished, *tested* work here, newest entry on top. Format: date (IST), what 
 
 ---
 
+## 2026-09-29 — Fire-risk map layer for Telangana / AP (#21, Joel's half)
+
+- Toggle "Show fire risk (14 days)" in the map legend, shown only for Telangana / AP (the only
+  region with a grid). First press fetches `/risk/telangana.json` (Jammy, PR #30) and draws one
+  cell per 0.1 deg below plumes and markers. Cells with value 0 (outside India) are not drawn:
+  no data, not safe. A failed fetch says so; it never shows an empty layer as a result.
+- Note under the toggle: dates, "crop burning included", "Experimental statistical estimate.
+  Low is not an all-clear.", and the model name, per contract #20.
+- Uses a local `RiskGridData` type that mirrors #20; swap to the `RiskGrid` import when
+  Jammy's types PR lands.
+
+Checks:
+```bash
+npm test --workspace frontend      # 40 pass, incl. riskGeometry.test.ts (3) + MapView toggle test
+npm run typecheck && npm run build # both exit 0
+```
+Passing looks like: `ℹ pass 40` / `ℹ fail 0`. The riskGeometry tests check that no-data cells
+are skipped but p=0 cells kept, south-west row-major placement, and that the published grid's
+length matches cols x rows.
+
+Seen in the browser: production build (`vite preview`) at 375x812, Telangana / AP, toggle
+on: cells drawn over Telangana / AP, legend 218x184 px on a 375x461 map, no console errors
+apart from the expected `/api/radar` 500 (no local Worker). Under `npm run dev` the basemap
+never loads because the maplibre worker request hangs. That happens without this change too:
+it is the dev server, not the layer. There is no CPU throttle in the preview pane, so it was
+not tested on a slowed CPU. Instead, the grid-to-GeoJSON conversion was timed in Node: 0.71 ms
+for 3963 cells, run once per toggle.
+
+---
+
 ## 2026-09-28 — Turnstile 110200 identified (#27); latest main deployed
 
 - The error code surfaced by #25 read **110200** in the failing browser. That is "domain not

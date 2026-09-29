@@ -112,3 +112,11 @@ test('3 hotspots with plumes produce 3 plume overlays, one per hotspot id', () =
   );
   assert.deepEqual(fc.features.map((f) => f.id), ['hs-1', 'hs-2', 'hs-3']);
 });
+
+test('risk toggle renders only when the region has a risk grid', () => {
+  const base = { region: 'telangana' as const, hotspots: [], onSelect: () => {} };
+  const withGrid = renderToStaticMarkup(React.createElement(MapView, { ...base, riskUrl: '/risk/telangana.json' }));
+  const without = renderToStaticMarkup(React.createElement(MapView, base));
+  assert.match(withGrid, /Show fire risk/);
+  assert.doesNotMatch(without, /fire risk/i);
+});

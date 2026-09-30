@@ -13,7 +13,7 @@ export const STUBBLE_BELT: readonly string[] = ['Punjab', 'Haryana', 'Delhi', 'U
  * (logic/src/geo.ts looks both up from prebuilt grids).
  * Out: a kind, the land cover it landed in, and a plain-language rationale.
  * Crop-burning fires are still shown — tagged differently, never dropped.
- * Owner: Jammy (delegation/jammy.md — classification module).
+ * Owner: Aaron (classification module).
  */
 export function classifyHotspot(hotspot: Hotspot, landCover: LandCover, state: string | undefined): Classification {
   // UTC month, 1-12. An unparseable timestamp is an unknown season — it must not

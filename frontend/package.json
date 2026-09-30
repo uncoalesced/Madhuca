@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "preview": "npm run build && wrangler dev",
     "test": "node --test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@madhuca/logic": "*",
@@ -17,10 +18,12 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.62.1",
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "^5.9.2",
-    "vite": "^7.1.2"
+    "vite": "^7.1.2",
+    "wrangler": "^4.143.1"
   }
 }

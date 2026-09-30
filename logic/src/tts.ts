@@ -27,7 +27,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
  * Speak an alert line aloud via self-hosted AI4Bharat Indic-TTS.
  * In: alert text + BCP-47 language code ('hi', 'pa' to start; 'te', 'en' supported).
  * Out: encoded audio bytes the frontend can hand to an <audio> element.
- * Owner: Jammy (delegation/jammy.md — Indic-TTS integration).
+ * Owner: Aaron (Indic-TTS integration).
  */
 export async function synthesizeSpeech(
   text: string,

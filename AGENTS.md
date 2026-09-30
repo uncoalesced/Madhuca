@@ -10,18 +10,17 @@ FIRMS hotspots → fetch wind → compute dispersion → classify → render. No
 in the background, and there is no server-side scheduler. Hackathon build with a
 hard deadline of 30 Sept 2026 — scope discipline matters more than extensibility.
 
-**The repo is nearly all skeleton.** `fetchHotspots` and `fetchWind` in `logic/` have
-real bodies and real tests. The offline land-cover pipeline (`pipeline/`) is also real
-and has been run for all four regions — see `pipeline/README.md`. Every other function
-and component is a typed stub with a `// TODO` body, and those signatures *are* the
-deliverable so far.
+**The app is built and live.** The fetchers, dispersion, classification, the Worker, the
+frontend and the offline pipeline all have real bodies and tests. Two things are
+deliberately unfinished: the learned crop-burning classifier (a plan, see `ml/README.md`)
+and `estimateSpread` in `logic/src/spread.ts`, a stub that returns "not estimated".
 
 ## Commands
 
 ```bash
-npm install            # npm workspaces: frontend + logic
+npm install            # npm workspaces: frontend + logic + worker
 npm run dev            # frontend on localhost:5173
-npm run typecheck      # tsc --noEmit across both workspaces
+npm run typecheck      # tsc --noEmit across every workspace
 npm run build          # typecheck + vite build -> frontend/dist
 npm test               # node:test, whichever workspaces have a test script
 ```
@@ -66,11 +65,11 @@ Three workspaces, split by where the work runs, not by feature:
   classification and TTS wrapper. Runs per-request.
 - **`frontend/`** — Vite + React + MapLibre GL. Mobile-first; the users are farmers
   and hikers on phones.
-- **`pipeline/`** — the only real GIS processing, run **offline in CI only**. Clips
-  ESA WorldCover to the four regions and emits static GeoJSON land-cover masks that
-  the live app reads. Nothing here may creep into the request path. Done and verified
-  for all four regions — see `pipeline/README.md` for the output schema and the
-  cropland/forest/other semantics before building anything that reads it.
+- **`pipeline/`** — the only real GIS processing, run **offline in CI only**. Builds
+  India's boundaries, the state grid and the national land-cover grid from ESA WorldCover,
+  which the live app reads as static files. Nothing here may creep into the request path.
+  Done and verified for all of India — see `pipeline/README.md` for the output schema and
+  the cropland/forest/other semantics before building anything that reads it.
 
 ### `logic/src/types.ts` is the seam
 
@@ -79,7 +78,7 @@ an implementation detail. Changing a shape there breaks someone else's in-flight
 work. Treat edits to it as a coordination event, not a refactor — the owner named in
 the doc comment decides, and whoever builds against it gets told.
 
-`Plume` in particular is Jammy's to finalize; the current shape is the minimum that
+`Plume` in particular is Aaron's to finalize; the current shape is the minimum that
 unblocks Rahul's overlay renderer.
 
 ### Deployment target: Cloudflare Workers free tier
@@ -173,8 +172,8 @@ them, not as a formality. Two that people get wrong:
 - **"Blocked by"** — write `nothing` if it is ready. Leaving it vague is how a task
   sits untouched for three days.
 
-Never file a Bug against an unimplemented stub. Every `// TODO` body throwing
-`not implemented` is the intended current state.
+Never file a Bug against `estimateSpread`, which is an intentional stub that returns
+"not estimated".
 
 ## Changing a shared type
 
@@ -202,7 +201,7 @@ Do all seven, in order:
 4. If it fails, go back to step 1. Do not proceed with a failing or skipped check.
 5. Run `npm run typecheck` and `npm run build`. Both must pass. CI runs these too,
    so a red tick on the PR means you skipped this step.
-6. Add a dated entry to `docs/log/<yourname>.md` with what you built, the exact
+6. (Maintainers only. Outside contributors skip steps 6 and 7.) Add a dated entry to `docs/log/<yourname>.md` with what you built, the exact
    command to re-run the check, and what passing looks like.
 7. Tick the box in your own `delegation/<yourname>.md`.
 
@@ -224,7 +223,7 @@ finding out.
 
 ## What runs automatically
 
-Five workflows in `.github/workflows/`. None of them replace running the checks
+Six workflows in `.github/workflows/`. None of them replace running the checks
 yourself — they exist to catch the case where someone didn't.
 
 | Workflow | When | What it does |
@@ -233,7 +232,8 @@ yourself — they exist to catch the case where someone didn't.
 | `contract-guard.yml` | every PR | **Fails** if the PR edits `logic/src/types.ts` without the `contract` label and a linked issue |
 | `labeler.yml` | every PR | Labels by area: `frontend`, `logic`, `pipeline`, `docs`, `repo-config`, `contract` |
 | `stale.yml` | daily, 09:00 IST | Comments on issues/PRs idle 3+ days. Never closes anything |
-| `landcover.yml` | manual only (`workflow_dispatch`) | The offline WorldCover clip-and-export. Real and verified for all four regions — publishes masks to `frontend/public/landcover/` only when run with `publish=true`; every run uploads a `landcover-masks` artifact regardless, so you can inspect output before committing it. |
+| `landcover.yml` | manual only (`workflow_dispatch`) | The offline WorldCover export. Real and verified for all of India — publishes the grid to `frontend/public/landcover/` only when run with `publish=true`; every run uploads a `landcover-masks` artifact regardless, so you can inspect output before committing it. |
+| `ml-risk.yml` | manual only (`workflow_dispatch`) | The offline fire-risk model (`ml/`). Needs a `FIRMS_MAP_KEY` repository secret. Publishes the grid to `frontend/public/risk/` only when run with `publish=true`. |
 
 If `contract-guard` fails on your PR, the failure message tells you the exact steps.
 Do not try to get around it by reverting the label check — the guard is the whole

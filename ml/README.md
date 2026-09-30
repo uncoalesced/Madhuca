@@ -1,6 +1,6 @@
 # ml/ — offline fire-risk model
 
-Issue #21, owned by Jammy. Offline only: nothing here runs on the request path or on
+Issue #21, owned by Aaron. Offline only: nothing here runs on the request path or on
 a schedule (`docs/MASTER.md`, 2026-09-28 ML decision). Python is allowed here the
 same way GDAL is in `pipeline/`. `logic/` and `frontend/` gain no dependency.
 
@@ -49,7 +49,7 @@ Filters:
 
 - The model is trained on forecast dates in 2020-2023 and scored on 2024 to mid-2026, a period it never saw.
 - ROC-AUC and PR-AUC are printed next to two baselines, climatology alone and last-30-days alone, so the model is only credited with what it adds over simple rules.
-- The numbers from each run are logged in `docs/log/jammy.md`.
+- The numbers from each run are written to `ml/out/<region>-metrics.json`.
 
 ## Model 2: learned crop-burning vs wildfire classifier (plan, not built)
 

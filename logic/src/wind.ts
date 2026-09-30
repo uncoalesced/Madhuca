@@ -81,7 +81,7 @@ export function parseWind(body: unknown): Wind {
   return {
     speedMs,
     // Meteorological, i.e. the direction the wind blows FROM. Smoke travels the
-    // other way: Plume.bearingDeg is this + 180, applied in Jammy's dispersion
+    // other way: Plume.bearingDeg is this + 180, applied in Aaron's dispersion
     // module, not here. Do not "fix" this by rotating it at the source.
     directionDeg,
     observedAt: toIsoUtc(observedAt),

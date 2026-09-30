@@ -13,8 +13,8 @@ function downwindBearing(wind: Wind | null): number {
  * Simplified Gaussian-puff plume approximation — NOT real NOAA HYSPLIT
  * (docs/MASTER.md §4). Physically reasonable, not publication-accurate.
  * In: one hotspot + wind at its coordinate. Out: downwind bearing, reach, spread.
- * Must degrade gracefully on calm or missing wind — don't throw (delegation/jammy.md).
- * Owner: Jammy.
+ * Must degrade gracefully on calm or missing wind — don't throw.
+ * Owner: Aaron.
  */
 export function computeDispersion(hotspot: Hotspot, wind: Wind | null): Plume {
   const frp = Math.max(1, Number.isFinite(hotspot.frp) ? hotspot.frp : 1);

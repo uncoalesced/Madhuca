@@ -48,7 +48,7 @@ export interface GeoJSONPolygon {
 }
 
 /**
- * Converts a Hotspot coordinate and Jammy's Plume contract into a GeoJSON Polygon
+ * Converts a Hotspot coordinate and Aaron's Plume contract into a GeoJSON Polygon
  * representing the downwind smoke dispersion cone or calm stagnation pool.
  */
 export function plumeToGeoJSONPolygon(

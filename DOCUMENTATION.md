@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Event | Build with AI: Code for Communities, Track 2 (Clean Air and Climate Resilience) |
-| Team | Joel, Jammy and Rahul |
+| Team | Joel, Aaron and Rahul |
 | Live site | https://madhuca.uncoalesced.com |
 | Repository | https://github.com/uncoalesced/Madhuca |
 | Submission date | 30 September 2026 |
@@ -72,7 +72,7 @@ deployment.
   PoK, Gilgit-Baltistan and Aksai Chin), replacing the basemap's de-facto lines, and made
   water blue.
 - Replaced the unreachable hosted voice with free, open-source speech that runs in the
-  browser (Piper voices for Hindi and Telugu; Punjabi read by the Hindi voice).
+  browser (Piper voices for Hindi and Telugu; Kannada read by the Telugu voice).
 - Added the smoke-direction compass badge, translated the whole detail panel, and drew
   separate fire and smoke overlays, including a labelled "possible spread" estimate.
 - Clipped the fire-risk layer to state lines and the coast, and added a national
@@ -82,9 +82,9 @@ deployment.
   all-India scan fits the free tier.
 - Set up continuous integration, the contract-guard workflow and the issue templates.
 
-### Jammy: science and logic core, server path and machine learning
+### Aaron: science and logic core, server path and machine learning
 
-Jammy built the part of the system that decides what is shown: pure, tested functions
+Aaron built the part of the system that decides what is shown: pure, tested functions
 that turn raw detections into plumes and classifications, and then the server that
 runs them.
 
@@ -235,7 +235,7 @@ their own direction and reviewed and tested what they produced:
 
 - **Google Antigravity.** Antigravity is Google's agentic development platform. It has an
   editor view for hands-on coding, and an Agent Manager for dispatching and supervising
-  agents that plan, write and test code across the workspace. Jammy and Rahul used it,
+  agents that plan, write and test code across the workspace. Aaron and Rahul used it,
   with Gemini models. `GEMINI.md` points its agents at the shared repository guidance.
 - **Claude Code.** Joel used Claude Code, Anthropic's agentic coding tool, in the Claude
   desktop app, for implementation, verification in a built-in browser, and

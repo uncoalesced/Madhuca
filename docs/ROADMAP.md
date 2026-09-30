@@ -3,7 +3,7 @@
 Hard deadline: **30 Sept**. Target a live, working madhuca.uncoalesced.com on the 29th,
 so the 30th is buffer, not build time.
 
-Joel owns the frontend, integration and deploy. Jammy owns the server path (the
+Joel owns the frontend, integration and deploy. Aaron owns the server path (the
 Worker that runs the pipeline). Rahul owns QA and pitch support, and does not commit
 to `frontend/src` or `logic/src`.
 
@@ -48,11 +48,11 @@ frontend calls it.
 | 26 Sept | ~~Drop hotspots outside India (the Punjab box reached into Pakistan, Bihar into Nepal)~~ **done** | `npm test`: Amritsar kept, Lahore and Birgunj dropped; live Punjab 33 to 16 |
 | 26 Sept | ~~Frontend rework: honest error state, map, layout, hook order, nearest town, emoji, `?demo`~~ **done** | `docs/log/joel.md` 2026-09-26 |
 | 27 Sept | Frontend leftovers: localized compass words, favicon, the missing tests above | `npm test` covers each one |
-| 28 Sept | Wire the frontend to Jammy's `/api/radar` | Browser run: markers appear for a region with live fires |
+| 28 Sept | Wire the frontend to Aaron's `/api/radar` | Browser run: markers appear for a region with live fires |
 | 29 Sept | Deploy Pages + Worker to madhuca.uncoalesced.com | Live URL loads all 4 regions on a phone |
 | 30 Sept | Final pitch review, then submit | Submitted |
 
-## Jammy: server path
+## Aaron: server path
 
 | When | Task | Check |
 |---|---|---|

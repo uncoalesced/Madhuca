@@ -20,7 +20,7 @@ import { bboxImageCoordinates, riskImageUrl, type RiskGridData } from '../utils/
 export interface MapViewProps {
   region: Region;
   hotspots: Hotspot[];
-  /** Plume per hotspot id, once Jammy's dispersion module is wired in. */
+  /** Plume per hotspot id, once Aaron's dispersion module is wired in. */
   plumes?: Record<string, Plume>;
   /** Classification per hotspot id (likely-crop-burning vs likely-wildfire). */
   classifications?: Record<string, Classification>;

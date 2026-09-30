@@ -27,7 +27,7 @@ Madhuca is deliberately *on demand*. Nothing runs in the background, nothing wat
 
 ## Why we made it
 
-The project started with a real fire. A friend of ours had property in Telangana damaged by a forest fire that started in broad daylight. Nobody had any warning. A fire like that is visible from space within hours, but that information never reaches the person standing downwind of it.
+The project started with a real fire. John Reddy, a friend of ours had property in Telangana damaged by a forest fire that started in broad daylight. Nobody had any warning. A fire like that is visible from space within hours, but that information never reaches the person standing downwind of it.
 
 The gap is not a lack of satellites. India already has a national forest-fire alert system, Van Agni, run by the Forest Survey of India. It is good at what it does, but it covers forest fires only. It does not tell crop burning apart from wildfire, it does not estimate where the smoke is going, and it has no public map in Indic languages. Those three things are exactly what a farmer, a hiker or a family in a smoky town actually needs to know, so those are what Madhuca is built around.
 

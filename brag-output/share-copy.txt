@@ -1,2 +1,0 @@
-Madhuca: a free, open-source fire and smoke radar for India. Open the page, see where the fires are and which way their smoke is heading.
-A failed scan is an error, never an all-clear. Built in the uncoalesced Mosaic System. madhuca.uncoalesced.com

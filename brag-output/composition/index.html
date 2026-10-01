@@ -109,7 +109,6 @@
       #wm6 { font-family: var(--mono); font-weight: 700; font-size: 200px; line-height: 1; letter-spacing: -0.02em; color: var(--green); }
       #url6 { font-family: var(--mono); font-weight: 600; font-size: 52px; letter-spacing: -0.01em; color: var(--porcelain); margin-top: 18px; }
       #tags6 { font-family: var(--mono); font-size: 26px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--green-tint); }
-      #by6 { font-family: var(--mono); font-size: 22px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-dark); }
     </style>
   </head>
   <body>
@@ -209,28 +208,12 @@
           <div id="wm6">madhuca</div>
           <div id="url6">madhuca.uncoalesced.com</div>
           <div id="tags6">Free · Open source · MIT</div>
-          <div id="by6">An uncoalesced product</div>
         </div>
       </div>
 
-      <!-- Audio -->
-      <audio id="bgm" data-start="0" data-duration="24.4" data-track-index="10" data-volume="0.3" src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3" data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":1},{"t":22.8,"v":1},{"t":24.4,"v":0}]}]}'></audio>
-      <audio id="sfx-l1" data-start="0.35" data-duration="0.6" data-track-index="11" data-volume="0.6" src="assets/sfx/interface/drop_001.ogg"></audio>
-      <audio id="sfx-l2" data-start="2.5" data-duration="0.6" data-track-index="12" data-volume="0.6" src="assets/sfx/interface/drop_002.ogg"></audio>
-      <audio id="sfx-logo" data-start="4.35" data-duration="0.6" data-track-index="13" data-volume="0.7" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
-      <audio id="sfx-app" data-start="8.7" data-duration="1" data-track-index="14" data-volume="0.55" src="assets/sfx/casino/card-slide-1.ogg"></audio>
-      <audio id="sfx-click1" data-start="9.98" data-duration="0.3" data-track-index="15" data-volume="0.7" src="assets/sfx/interface/click_003.ogg"></audio>
-      <audio id="sfx-m1" data-start="10.93" data-duration="0.6" data-track-index="16" data-volume="0.55" src="assets/sfx/interface/drop_001.ogg"></audio>
-      <audio id="sfx-m2" data-start="11.85" data-duration="0.6" data-track-index="17" data-volume="0.5" src="assets/sfx/interface/drop_002.ogg"></audio>
-      <audio id="sfx-click2" data-start="13.58" data-duration="0.3" data-track-index="18" data-volume="0.7" src="assets/sfx/interface/click_002.ogg"></audio>
-      <audio id="sfx-panel" data-start="13.62" data-duration="1" data-track-index="19" data-volume="0.5" src="assets/sfx/casino/card-slide-1.ogg"></audio>
-      <audio id="sfx-spk" data-start="17.45" data-duration="0.3" data-track-index="20" data-volume="0.7" src="assets/sfx/interface/click_003.ogg"></audio>
-      <audio id="sfx-rule" data-start="18.54" data-duration="0.6" data-track-index="21" data-volume="0.7" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
-      <audio id="sfx-lock" data-start="21.82" data-duration="0.6" data-track-index="22" data-volume="0.6" src="assets/sfx/interface/bong_001.ogg"></audio>
     </div>
 
     <script>
-      const AUDIO_ENERGY = [0.68,0.67,0.66,0.65,0.63,0.6,0.57,0.55,0.49,0.46,0.45,0.44,0.4,0.39,0.42,0.47,0.49,0.48,0.47,0.46,0.4,0.31,0.31,0.29,0.27,0.28,0.35,0.41,0.48,0.47,0.46,0.44,0.4,0.32,0.33,0.34,0.34,0.36,0.39,0.41,0.43,0.36,0.35,0.36,0.37,0.4,0.47,0.54,0.6,0.61,0.6,0.59,0.59,0.52,0.47,0.46,0.46,0.46,0.45,0.43,0.41,0.42,0.39,0.4,0.4,0.4,0.41,0.48,0.52,0.53,0.5,0.52,0.53,0.53,0.46,0.47,0.46,0.46,0.44,0.47,0.5,0.56,0.54,0.5,0.48,0.44,0.35,0.32,0.34,0.37,0.42,0.47,0.53,0.58,0.58,0.53,0.47,0.39,0.31,0.26,0.28,0.29,0.31,0.36,0.4,0.42,0.41,0.36,0.37,0.38,0.38,0.43,0.5,0.56,0.6,0.58,0.57,0.58,0.55,0.48,0.48,0.49,0.48,0.48,0.46,0.44,0.47,0.42,0.44,0.46,0.49,0.53,0.57,0.61,0.66,0.63,0.6,0.58,0.54,0.48,0.44,0.44,0.42,0.38,0.38,0.41,0.47,0.51,0.51,0.5,0.5,0.43,0.35,0.34,0.3,0.27,0.29,0.36,0.42,0.48,0.47,0.46,0.43,0.38,0.3,0.31,0.32,0.32,0.34,0.37,0.39,0.4,0.34,0.35,0.36,0.38,0.41,0.49,0.56,0.61,0.6,0.59,0.58,0.57,0.5,0.46,0.46,0.47,0.47,0.46,0.43,0.41,0.4,0.38,0.39,0.38,0.38,0.4,0.47,0.51,0.53,0.52,0.53,0.54,0.54,0.47,0.47,0.47,0.45,0.43,0.46,0.49,0.55,0.53,0.49,0.47,0.43,0.33,0.31,0.33,0.36,0.41,0.47,0.53,0.59,0.58,0.53,0.47,0.38,0.3,0.27,0.29,0.3,0.32,0.36,0.4,0.42,0.39,0.35,0.37,0.38,0.39,0.44,0.51,0.57,0.6,0.58,0.57,0.58,0.55,0.48,0.48,0.48,0.48,0.47,0.46,0.44,0.46,0.45,0.49,0.54,0.59,0.63,0.67,0.73,0.77,0.74,0.7,0.68,0.67,0.66,0.65,0.64,0.63,0.63,0.66,0.69,0.72,0.73,0.72,0.72,0.71,0.66,0.62,0.6,0.57,0.56,0.56,0.58,0.6,0.6,0.61,0.66,0.7,0.72,0.69,0.7,0.71,0.71,0.67,0.64,0.62,0.63,0.61,0.61,0.61,0.61,0.62,0.66,0.7,0.73,0.72,0.71,0.71,0.7,0.65,0.6,0.6,0.61,0.63,0.64,0.65,0.67,0.69,0.68,0.71,0.72,0.73,0.71,0.72,0.72,0.71,0.68,0.66,0.65,0.65,0.64,0.64,0.64,0.63,0.63,0.66,0.69,0.71,0.69,0.68,0.67,0.65,0.6,0.59,0.59,0.61,0.64,0.66,0.69,0.72,0.71,0.72,0.74,0.75,0.75,0.74,0.74,0.74,0.72,0.68,0.66,0.65,0.65,0.64,0.64,0.64,0.64,0.66,0.7,0.73,0.74,0.73,0.73,0.73,0.71,0.67,0.64,0.64,0.63,0.63,0.63,0.63,0.62,0.62,0.65,0.69,0.71,0.72,0.74,0.76,0.77,0.74,0.71,0.68,0.67,0.66,0.65,0.65,0.64,0.63,0.66,0.69,0.72,0.73,0.72,0.71,0.7,0.66,0.62,0.59,0.57,0.56,0.57,0.59,0.6,0.6,0.62,0.67,0.71,0.73,0.7,0.7,0.7,0.68,0.64,0.6,0.58,0.58,0.57,0.57,0.58,0.59,0.61,0.66,0.7,0.74,0.73,0.72,0.72,0.71,0.67,0.63,0.62,0.63,0.65,0.66,0.68,0.7,0.71,0.73,0.75,0.77,0.77,0.75,0.75,0.74,0.72,0.7,0.67,0.66,0.67,0.65,0.65,0.64,0.63,0.63,0.66,0.69,0.71,0.7,0.69,0.69,0.68,0.64,0.64,0.64,0.67,0.7,0.72,0.75,0.76,0.75,0.75,0.76,0.77,0.76,0.75,0.76,0.76,0.74,0.72,0.7,0.7,0.69,0.69,0.69,0.68,0.66,0.67,0.69,0.72,0.72,0.73,0.72,0.72,0.69,0.66,0.64,0.62,0.6,0.59,0.59,0.59,0.58,0.57,0.62,0.66,0.7,0.73,0.77,0.81,0.84,0.77,0.71,0.65,0.6,0.54,0.52,0.49,0.5,0.5,0.56,0.63,0.69,0.7,0.7,0.71,0.7,0.6,0.52,0.47,0.44,0.41,0.4,0.43,0.5,0.54,0.57,0.64,0.72,0.75,0.73,0.71,0.7,0.68,0.63,0.61,0.62,0.65,0.67,0.69,0.71,0.74,0.74,0.76,0.78,0.79,0.77,0.75,0.75,0.73,0.69,0.67,0.68,0.71,0.73,0.74,0.75,0.77,0.77,0.79,0.8,0.8,0.8,0.79,0.78,0.78,0.76,0.74,0.72,0.7,0.67,0.64,0.61,0.59,0.56,0.57,0.62,0.67,0.71,0.72,0.73,0.72,0.65,0.56,0.55,0.56,0.58,0.6,0.65,0.73,0.8,0.79,0.8,0.82,0.82,0.8,0.8,0.78,0.74,0.69,0.68,0.68,0.69,0.69,0.7,0.74,0.77,0.77,0.77,0.79,0.79,0.79,0.78,0.78,0.78,0.76,0.74,0.74,0.75,0.76,0.77,0.77,0.77,0.77,0.77,0.79,0.8,0.8,0.79,0.79,0.79,0.79,0.76,0.73,0.69,0.64,0.57,0.55,0.53,0.5,0.48,0.54,0.62,0.69,0.69,0.69,0.69,0.68,0.59,0.53,0.49,0.46,0.44,0.44,0.46,0.52,0.53,0.57,0.64,0.71,0.73,0.72,0.71,0.7,0.66,0.62,0.61,0.62,0.65,0.68,0.71,0.73,0.75,0.74,0.76,0.78,0.78,0.75,0.73,0.73,0.71,0.68,0.66,0.66,0.7,0.72,0.74,0.75,0.76,0.76,0.78,0.79,0.79,0.79,0.78,0.78,0.78,0.76,0.73,0.71,0.7,0.67,0.64,0.62,0.59,0.56,0.59,0.64,0.69,0.74,0.77,0.81,0.88];
       const D2R = Math.PI / 180;
       const tl = gsap.timeline({ paused: true });
 
@@ -427,17 +410,6 @@
       tl.fromTo('#wm6', { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: 0.5, ease: 'power3.out' }, 22.2);
       tl.fromTo('#url6', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power3.out' }, 22.93); // beat-locked: 22.93s
       tl.fromTo('#tags6', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 23.2);
-      tl.fromTo('#by6', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 23.4);
-
-      // ---------- subtle audio-reactive: music RMS nudges the hook field and the marks ----------
-      function react(f) {
-        const e = AUDIO_ENERGY[f] || 0;
-        const t = f / 30;
-        if (t < 4.39) gsap.set('#field', { opacity: 0.88 + 0.12 * e });
-        else if (t < 8.74) gsap.set('#mk2', { scale: 1 + 0.015 * e, svgOrigin: '600 540' });
-        else if (t >= 21.84) gsap.set('#mk6', { scale: 1 + 0.015 * e, svgOrigin: '600 540' });
-      }
-      for (let f = 0; f < 732; f++) { tl.call(react, [f], f / 30); }
 
       window.__timelines["main"] = tl;
       tl.seek(0);

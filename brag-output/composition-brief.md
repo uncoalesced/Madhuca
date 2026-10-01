@@ -50,20 +50,12 @@ Scene summary:
 6. Lockup - 2.56s - mark, wordmark, URL
 
 ## Audio
-- Audio role: warm bed with sparse professional accents
-- Audio arc: steady bed, accents at cuts and interactions, fade out on the URL
-- Music: `happy-beats-business-moves-vol-12-by-ende-dot-app.mp3`
-- Music treatment: volume 0.30, fade out over last 1.6s
-- Music cue guidance: bundled preset `assets/music/cues/...vol-12...music-cues.json` (strong cues 8.74, 13.11, 18.56, 22.93)
-- Audio-reactive treatment: subtle; ffmpeg-extracted RMS (30fps) modulates mark scale and hook dot-field opacity
-- SFX: impactSoft_medium_001, bong_001, click_002/003, drop_001/002, card-slide-1 (all low or medium HF risk)
+None. The video is silent by design: no music, no SFX, no voiceover.
 
 ## Hyperframes Instructions
 Built with hyperframes-core, hyperframes-animation, hyperframes-creative, hyperframes-keyframes and hyperframes-cli. Gate: `npx hyperframes check`.
 
 ## Credits and re-rendering
-- Music: "Happy Beats / Business Moves" vol-12 by ende.app (https://ende.app/en). The brag skill does not document the licence terms, so the source MP3 is not committed here. To re-render, copy `happy-beats-business-moves-vol-12-by-ende-dot-app.mp3` from the brag skill's `assets/music/` into `brag-output/composition/assets/music/`.
-- SFX: Kenney.nl, CC0.
 - Fonts: JetBrains Mono, IBM Plex Sans, Noto Sans Devanagari and Noto Sans Telugu (SIL OFL), bundled in `composition/assets/fonts`.
 - Map: India boundaries from `frontend/public/boundaries`. The 9 fire points are the app's demo points plus a few more placed on Punjab and Uttarakhand, labelled DEMO DATA in the video.
 - Render: `cd brag-output/composition && npx hyperframes check && npx hyperframes render --quality looks --output ../brag.mp4`

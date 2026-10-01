@@ -4,6 +4,10 @@
 
 **A free, open-source fire and smoke radar for India. Open the page, see where the fires are, and which way their smoke is heading.**
 
+<video src="https://github.com/uncoalesced/Madhuca/raw/main/assets/illustration/illustration.mp4" controls muted playsinline width="100%"></video>
+
+[Watch the 24-second illustration](assets/illustration/illustration.mp4)
+
 Live at **[madhuca.uncoalesced.com](https://madhuca.uncoalesced.com)** · MIT licensed · Built for Google's *Build with AI: Code for Communities* hackathon (Track 2, Clean Air & Climate Resilience)
 
 ---
